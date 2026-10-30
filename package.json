@@ -1,0 +1,135 @@
+{
+  "name": "keel-npm",
+  "displayName": "Keel — Safe npm Fixes",
+  "description": "Fix npm vulnerabilities without breaking your project.",
+  "version": "0.1.0",
+  "publisher": "iamhenry",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HenryD5/keel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HenryD5/keel/issues"
+  },
+  "homepage": "https://github.com/HenryD5/keel#readme",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "npm",
+    "audit",
+    "security",
+    "vulnerabilities",
+    "dependencies",
+    "cve",
+    "supply chain",
+    "overrides"
+  ],
+  "galleryBanner": {
+    "color": "#0e2a47",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "keel",
+          "title": "Keel",
+          "icon": "media/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "keel": [
+        {
+          "id": "keel.home",
+          "name": "%view.home.name%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "keel.home",
+        "contents": "%view.home.welcome%"
+      }
+    ],
+    "commands": [
+      {
+        "command": "keel.scan",
+        "title": "%command.scan.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "keel.showLog",
+        "title": "%command.showLog.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "keel.setSnykToken",
+        "title": "%command.setSnykToken.title%",
+        "category": "%command.category%"
+      }
+    ],
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "keel.language": {
+          "type": "string",
+          "enum": [
+            "es",
+            "en"
+          ],
+          "default": "es",
+          "description": "%configuration.language.description%"
+        },
+        "keel.quarantineDays": {
+          "type": "integer",
+          "default": 7,
+          "minimum": 0,
+          "description": "%configuration.quarantineDays.description%"
+        },
+        "keel.snykOrgId": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.snykOrgId.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs && vite build --config webview-ui/vite.config.mts",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit && vue-tsc --noEmit -p webview-ui/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "npx --yes @vscode/vsce@3.9.2 package --no-dependencies",
+    "vscode:prepublish": "node esbuild.mjs --production && vite build --config webview-ui/vite.config.mts",
+    "build:webview": "vite build --config webview-ui/vite.config.mts"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1",
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/semver": "^7.8.0",
+    "@types/vscode": "~1.95.0",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vscode/codicons": "^0.0.46-24",
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12",
+    "vue": "^3.5.44",
+    "vue-tsc": "^3.3.14"
+  }
+}

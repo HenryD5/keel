@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+test/sample-project/node_modules/
+test/sample-project/.keel.json
+
+# Documentos internos del proyecto
+PROMPT.md
+docs/decisiones.md

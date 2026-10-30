@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- D · Candado: el ojo de buey del casco es un candado (dependencias aseguradas). -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#173f66"/><stop offset="1" stop-color="#0e2a47"/></linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b2f52"/><stop offset="1" stop-color="#071a2e"/></linearGradient>
+    <clipPath id="tile"><rect width="256" height="256" rx="56"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138 V256 H0 Z" fill="url(#sea)"/>
+    <path d="M112 150 H144 L134 206 Q128 216 122 206 Z" fill="#3ddc97"/><path d="M44 100 H212 Q206 140 170 154 H86 Q50 140 44 100 Z" fill="#f4f7fb"/><rect x="96" y="76" width="64" height="24" rx="6" fill="#f4f7fb"/><path d="M118 112 v-6 a10 10 0 0 1 20 0 v6" fill="none" stroke="#0e2a47" stroke-width="6"/><rect x="110" y="110" width="36" height="28" rx="6" fill="#0e2a47"/><circle cx="128" cy="122" r="4" fill="#3ddc97"/><rect x="126" y="122" width="4" height="9" rx="2" fill="#3ddc97"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138 V256 H0 Z" fill="#0b2f52" opacity="0.35"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138" fill="none" stroke="#5fb3ff" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+    
+  </g>
+</svg>

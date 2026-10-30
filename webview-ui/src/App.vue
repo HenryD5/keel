@@ -1,0 +1,234 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import type { ApplyMethod } from '../../src/core/apply/steps';
+import type { ApplyStatus, HostMessage, ImpactPayload, Lang, PlanPayload, ScanPayload } from '../../src/webview/protocol';
+import DetailView from './components/DetailView.vue';
+import ReviewView from './components/ReviewView.vue';
+import ResultsView from './components/ResultsView.vue';
+import { STRINGS } from './i18n';
+import { scopeToFilter } from './filter';
+import { defaultSelected, isSelectable } from './model';
+import { loadState, saveState, send, type Filter } from './vscode';
+
+const saved = loadState();
+const lang = ref<Lang>(document.documentElement.lang === 'en' ? 'en' : 'es');
+const scan = ref<ScanPayload>();
+const scanning = ref(false);
+const error = ref<string>();
+const screen = ref(saved.screen);
+const detail = ref(saved.detail);
+const filter = ref<Filter>(saved.filter);
+const selected = ref<string[] | undefined>(saved.selected);
+const impacts = reactive(new Map<string, ImpactPayload>());
+const saving = ref<string>();
+const saveError = ref<string>();
+const plan = ref<PlanPayload>();
+const preview = ref<Extract<HostMessage, { type: 'plan' }>['preview']>();
+const exact = ref(false);
+const applying = ref(false);
+const applySucceeded = ref(false);
+const applyError = ref<string>();
+const progress = reactive(new Map<number, { status: ApplyStatus; detail?: string }>());
+
+
+const selection = computed(() => {
+  if (!scan.value) return [];
+  const base = selected.value ?? defaultSelected(scan.value);
+  return base.filter((name) => scan.value!.result.packages.some((p) => p.name === name && isSelectable(p, scan.value!)));
+});
+const scoped = computed(() => scopeToFilter(scan.value?.result.packages ?? [], selection.value, filter.value));
+const detailPkg = computed(() => scan.value?.result.packages.find((p) => p.name === detail.value));
+
+watch([screen, detail, filter, selected, scan], () =>
+  saveState({ screen: screen.value, detail: detail.value, filter: filter.value, selected: selected.value, scannedAt: scan.value?.result.scannedAt }),
+);
+watch(lang, (l) => (document.documentElement.lang = l));
+
+function applyScan(payload: ScanPayload): void {
+  // Un escaneo nuevo descarta la selección y el detalle de uno anterior.
+  if (payload.result.scannedAt !== saved.scannedAt) {
+    selected.value = undefined;
+    impacts.clear();
+    if (screen.value === 'detail' && !payload.result.packages.some((p) => p.name === detail.value)) screen.value = 'results';
+  }
+  saved.scannedAt = payload.result.scannedAt;
+  scan.value = payload;
+  if (applySucceeded.value) {
+    applying.value = false;
+    applySucceeded.value = false;
+    screen.value = 'results';
+  }
+}
+
+function onMessage(event: MessageEvent<HostMessage>): void {
+  const msg = event.data;
+  switch (msg.type) {
+    case 'init':
+      lang.value = msg.lang;
+      scanning.value = msg.scanning;
+      error.value = msg.error;
+      if (msg.scan) applyScan(msg.scan);
+      if (screen.value === 'detail' && detailPkg.value) openDetail(detailPkg.value.name);
+      if (screen.value === 'review' && scan.value) send({ type: 'requestPlan', selected: scoped.value, exact: exact.value });
+      break;
+    case 'scanning':
+      scanning.value = true;
+      error.value = undefined;
+      break;
+    case 'scan':
+      scanning.value = false;
+      applyScan(msg.scan);
+      break;
+    case 'scanError':
+      scanning.value = false;
+      error.value = msg.message;
+      break;
+    case 'impact':
+      impacts.set(msg.impact.name, msg.impact);
+      break;
+    case 'plan':
+      plan.value = msg.plan;
+      preview.value = msg.preview;
+      applyError.value = undefined;
+      break;
+    case 'applyProgress':
+      progress.set(msg.step, { status: msg.status, detail: msg.detail });
+      break;
+    case 'applyDone':
+      applying.value = false;
+      if (msg.ok) applySucceeded.value = true;
+      else {
+        applyError.value = msg.message ?? STRINGS[lang.value].applyFailed;
+      }
+      break;
+    case 'decisionSaved':
+      if (scan.value) {
+        if (msg.keep) scan.value.keep[msg.name] = msg.keep;
+        else delete scan.value.keep[msg.name];
+        if (msg.choice === 'keep') delete scan.value.choices[msg.name];
+        else scan.value.choices[msg.name] = msg.choice;
+        const current = selection.value.filter((n) => n !== msg.name);
+        selected.value = msg.choice === 'keep' ? current : [...current, msg.name];
+      }
+      if (saving.value === msg.name) {
+        saving.value = undefined;
+        screen.value = 'results';
+      }
+      break;
+    case 'decisionError':
+      saving.value = undefined;
+      saveError.value = msg.message;
+      break;
+    case 'lang':
+      lang.value = msg.lang;
+      break;
+  }
+}
+
+function openReview(): void {
+  screen.value = 'review';
+  exact.value = false;
+  plan.value = undefined;
+  preview.value = undefined;
+  applyError.value = undefined;
+  progress.clear();
+  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value });
+  window.scrollTo(0, 0);
+}
+
+function setExact(value: boolean): void {
+  exact.value = value;
+  plan.value = undefined;
+  send({ type: 'requestPlan', selected: scoped.value, exact: value });
+}
+
+function apply(method: ApplyMethod): void {
+  applying.value = true;
+  applySucceeded.value = false;
+  applyError.value = undefined;
+  progress.clear();
+  send({ type: 'apply', method, selected: scoped.value, exact: exact.value });
+}
+
+function openDetail(name: string): void {
+  const pkg = scan.value?.result.packages.find((p) => p.name === name);
+  if (!pkg) return;
+  detail.value = name;
+  screen.value = 'detail';
+  saveError.value = undefined;
+  const to = pkg.resolution?.recommended?.version ?? pkg.resolution?.waitingFor?.version;
+  if (to && impacts.get(name)?.to !== to) send({ type: 'requestImpact', name, to });
+  window.scrollTo(0, 0);
+}
+
+function setLang(l: Lang): void {
+  lang.value = l;
+  send({ type: 'setLang', lang: l });
+  // El resumen del changelog depende del idioma: se pide de nuevo al volver al detalle.
+  impacts.clear();
+}
+
+function toggle(name: string, on: boolean): void {
+  const current = selection.value.filter((n) => n !== name);
+  selected.value = on ? [...current, name] : current;
+}
+
+function saveDecision(choice: 'min' | 'latest' | 'keep', reason?: string): void {
+  if (!detail.value) return;
+  saving.value = detail.value;
+  saveError.value = undefined;
+  send({ type: 'saveDecision', name: detail.value, choice, reason });
+}
+
+onMounted(() => {
+  window.addEventListener('message', onMessage);
+  send({ type: 'ready' });
+});
+onBeforeUnmount(() => window.removeEventListener('message', onMessage));
+</script>
+
+<template>
+  <ReviewView
+    v-if="screen === 'review' && scan"
+    :lang="lang"
+    :plan="plan"
+    :preview="preview"
+    :exact="exact"
+    :applying="applying"
+    :progress="progress"
+    :error="applyError"
+    @back="screen = 'results'"
+    @set-exact="setExact"
+    @apply="apply"
+  />
+  <DetailView
+    v-else-if="screen === 'detail' && scan && detailPkg"
+    :lang="lang"
+    :scan="scan"
+    :pkg="detailPkg"
+    :impact="impacts.get(detailPkg.name)"
+    :saving="saving === detailPkg.name"
+    :save-error="saveError"
+    @back="screen = 'results'"
+    @save="saveDecision"
+    @open-file="(path, line) => send({ type: 'openFile', path, line })"
+    @open-external="(url) => send({ type: 'openExternal', url })"
+  />
+  <ResultsView
+    v-else
+    :lang="lang"
+    :scan="scan"
+    :scanning="scanning"
+    :error="error"
+    :filter="filter"
+    :scoped="scoped"
+    :selection="selection"
+    @set-lang="setLang"
+    @set-filter="(f) => (filter = f)"
+    @toggle="toggle"
+    @open-detail="openDetail"
+    @rescan="send({ type: 'rescan' })"
+    @show-log="send({ type: 'showLog' })"
+    @review="openReview"
+  />
+</template>

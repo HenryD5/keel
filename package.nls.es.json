@@ -1,0 +1,12 @@
+{
+  "command.category": "Keel",
+  "command.scan.title": "Escanear",
+  "command.showLog.title": "Mostrar registro de comandos",
+  "command.setSnykToken.title": "Configurar token de Snyk",
+  "view.home.name": "Inicio",
+  "view.home.welcome": "Revisa las vulnerabilidades de tus dependencias npm.\n[Escanear](command:keel.scan)\n[Configurar token de Snyk](command:keel.setSnykToken)\n[Mostrar registro de comandos](command:keel.showLog)",
+  "configuration.title": "Keel",
+  "configuration.language.description": "Idioma de los resúmenes y del webview de Keel.",
+  "configuration.quarantineDays.description": "No recomendar versiones publicadas hace menos de esta cantidad de días (excepto para vulnerabilidades críticas).",
+  "configuration.snykOrgId.description": "ID de organización de Snyk usado como segunda referencia (la API de Snyk suele requerir plan Enterprise; sin ella, Keel usa OSV). El token se guarda con el comando 'Keel: Configurar token de Snyk'."
+}

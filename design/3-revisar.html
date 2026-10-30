@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keel · 3 · Revisar antes de aplicar</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- Pantalla 3: el dev elige el método (npm audit fix vs. versiones exactas), ve el diff y los comandos. Datos de ejemplo.
+     Los dos métodos se alternan con los radios (script al final). -->
+<div class="tabbar">
+  <div class="tab">Vulnerabilidades</div>
+  <div class="tabnote">Vista previa · datos de ejemplo</div>
+</div>
+
+<main style="padding-top:24px">
+  <a class="back" href="1-resultados.html">← Volver a resultados</a>
+
+  <header style="display:flex;flex-direction:column;gap:6px">
+    <h1>Revisar antes de aplicar</h1>
+    <p class="sub" style="font-size:14px">5 paquetes seleccionados · 4 se corrigen con npm audit fix · 1 necesitaría --force</p>
+  </header>
+
+  <fieldset class="methods">
+    <legend>¿Cómo quieres aplicarlo?</legend>
+    <label class="method" id="m-audit">
+      <input type="radio" name="method" value="audit">
+      <div><b>Solo npm audit fix</b><p>npm corrige lo que puede sin salir de tus rangos. Rápido, pero npm elige la versión y jsonwebtoken queda pendiente.</p><span class="cmd">npm audit fix</span></div>
+    </label>
+    <label class="method on" id="m-exact">
+      <input type="radio" name="method" value="exact" checked>
+      <div><b>Instalar estas versiones</b><p>Las versiones mínimas seguras que elegiste, incluido jsonwebtoken 9.0.0, sin usar --force.</p><span class="cmd">editar package.json + npm install</span></div>
+    </label>
+  </fieldset>
+
+  <!-- Método A: Solo npm audit fix -->
+  <div id="view-audit" hidden style="display:flex;flex-direction:column;gap:16px">
+    <section class="card">
+      <div class="card-head"><h2>Qué haría npm audit fix</h2></div>
+      <ul class="list">
+        <li><span class="mono">axios 1.18.0 → <span style="color:var(--orange)">1.21.0</span></span><span class="warn">Última del rango, en cuarentena (hace 2 días)</span></li>
+        <li><span class="mono">vue-i18n 9.2.2 → 9.14.5</span><span class="ok">Corregido</span></li>
+        <li><span class="mono">vite 5.4.2 → 5.4.12</span><span class="ok">Corregido</span></li>
+        <li><span class="mono">postcss 8.4.21 → 8.4.31</span><span class="ok">Corregido</span></li>
+        <li><span class="mono">jsonwebtoken 8.5.1</span><span class="warn">Queda pendiente: npm solo lo corrige con --force</span></li>
+        <li><span class="mono">braces 3.0.2 → 3.0.3</span><span style="color:var(--muted)">También lo cambia, aunque no lo seleccionaste</span></li>
+      </ul>
+    </section>
+    <p class="sub">npm audit fix trabaja sobre todo el proyecto y elige la versión dentro de tus rangos: no se puede limitar a lo que seleccionaste. Si quieres controlar cada versión, usa "Instalar estas versiones".</p>
+  </div>
+
+  <!-- Método B: Instalar estas versiones -->
+  <div id="view-exact" class="cols">
+    <section class="card">
+      <div class="card-head"><h2>Qué se va a instalar</h2></div>
+      <ul class="list">
+        <li><span class="mono">axios 1.18.0 → 1.20.0</span><span class="badge b-minor">Minor</span></li>
+        <li><span class="mono">vue-i18n 9.2.2 → 9.14.5</span><span class="badge b-minor">Minor</span></li>
+        <li><span class="mono">vite 5.4.2 → 5.4.12</span><span class="badge b-patch">Patch</span></li>
+        <li><span class="mono">postcss 8.4.21 → 8.4.31 <span style="color:var(--faint)">· override</span></span><span class="badge b-patch">Patch</span></li>
+        <li><span class="mono">jsonwebtoken 8.5.1 → 9.0.0</span><span class="badge b-major">Major · sin --force</span></li>
+      </ul>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>package.json</h2></div>
+      <div class="diff">
+<div>  "dependencies": {</div>
+<div class="del">-   "axios": "^1.18.0",</div>
+<div class="add">+   "axios": "^1.20.0",</div>
+<div class="del">-   "jsonwebtoken": "^8.5.1",</div>
+<div class="add">+   "jsonwebtoken": "^9.0.0",</div>
+<div class="del">-   "vue-i18n": "^9.2.2"</div>
+<div class="add">+   "vue-i18n": "^9.14.5"</div>
+<div>  },</div>
+<div>  "devDependencies": {</div>
+<div class="del">-   "vite": "^5.4.2"</div>
+<div class="add">+   "vite": "^5.4.12"</div>
+<div>  },</div>
+<div class="add">+ "overrides": {</div>
+<div class="add">+   "postcss": "8.4.31"</div>
+<div class="add">+ }</div>
+      </div>
+      <label class="opt" style="padding:4px 20px 12px;border-top:1px solid var(--row-border);align-items:center"><input type="checkbox" style="margin:0"><span style="color:#d4d6dc">Fijar versiones exactas (sin ^)</span></label>
+    </section>
+  </div>
+
+  <section class="card" aria-label="Comandos que se ejecutarán">
+    <div class="card-head"><h2>Comandos que se ejecutarán, en orden</h2><span class="ref">Nunca se usa npm audit fix --force</span></div>
+    <ol class="steps" id="steps-exact">
+      <li><span class="n">1</span><code>Editar package.json</code><span>Los cambios de arriba</span></li>
+      <li><span class="n">2</span><code>npm install</code><span>Instala y actualiza el lockfile</span></li>
+      <li><span class="n">3</span><code>npm audit signatures</code><span>Verifica las firmas del registro</span></li>
+      <li><span class="n">4</span><code>npm audit</code><span>Re-escaneo para confirmar</span></li>
+    </ol>
+    <ol class="steps" id="steps-audit" hidden>
+      <li><span class="n">1</span><code>npm audit fix</code><span>Corrige dentro de tus rangos</span></li>
+      <li><span class="n">2</span><code>npm audit signatures</code><span>Verifica las firmas del registro</span></li>
+      <li><span class="n">3</span><code>npm audit</code><span>Re-escaneo para confirmar</span></li>
+    </ol>
+  </section>
+
+  <section class="notice blue" aria-label="Recomendación">
+    <span style="color:var(--blue)">ℹ</span>
+    <p>Recomendado: haz commit de tus cambios antes de aplicar, y después corre tu build y tus tests (<code>npm run build</code>, <code>npm test</code>). La extensión no los ejecuta por ti.</p>
+  </section>
+
+  <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px">
+    <a class="btn secondary" href="1-resultados.html">Cancelar</a>
+    <button class="btn primary" id="apply">Instalar 5 versiones</button>
+  </div>
+</main>
+
+<script>
+  document.querySelectorAll('input[name=method]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      var audit = r.value === 'audit';
+      document.getElementById('m-audit').classList.toggle('on', audit);
+      document.getElementById('m-exact').classList.toggle('on', !audit);
+      document.getElementById('view-audit').hidden = !audit;
+      document.getElementById('view-exact').hidden = audit;
+      document.getElementById('steps-audit').hidden = !audit;
+      document.getElementById('steps-exact').hidden = audit;
+      document.getElementById('apply').textContent = audit ? 'Ejecutar npm audit fix' : 'Instalar 5 versiones';
+    });
+  });
+</script>
+</body>
+</html>

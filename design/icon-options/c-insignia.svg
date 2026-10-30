@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- C · Insignia: barco estable con una insignia de verificado (aviso resuelto). -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#173f66"/><stop offset="1" stop-color="#0e2a47"/></linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b2f52"/><stop offset="1" stop-color="#071a2e"/></linearGradient>
+    <clipPath id="tile"><rect width="256" height="256" rx="56"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138 V256 H0 Z" fill="url(#sea)"/>
+    <path d="M112 150 H144 L134 206 Q128 216 122 206 Z" fill="#3ddc97"/><path d="M44 100 H212 Q206 140 170 154 H86 Q50 140 44 100 Z" fill="#f4f7fb"/><rect x="96" y="76" width="64" height="24" rx="6" fill="#f4f7fb"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138 V256 H0 Z" fill="#0b2f52" opacity="0.35"/>
+    <path d="M0 138 C 32 128, 64 148, 96 138 S 160 128, 192 138 S 240 148, 256 138" fill="none" stroke="#5fb3ff" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+    <circle cx="196" cy="62" r="34" fill="#3ddc97" stroke="#0e2a47" stroke-width="6"/><path d="M180 62 l11 11 l22 -24" fill="none" stroke="#0e2a47" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

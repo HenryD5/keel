@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keel · 2 · Detalle y riesgo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- Pantalla 2: detalle de un paquete (ejemplo: jsonwebtoken, salto major). Datos de ejemplo. -->
+<div class="tabbar">
+  <div class="tab">Vulnerabilidades</div>
+  <div class="tabnote">Vista previa · datos de ejemplo</div>
+</div>
+
+<main style="padding-top:24px">
+  <a class="back" href="1-resultados.html">← Volver a resultados</a>
+
+  <header style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px">
+      <h1 class="mono" style="font-weight:500">jsonwebtoken</h1>
+      <span class="mono" style="font-size:18px;color:var(--faint)">8.5.1 → <span style="color:var(--fg)">9.0.0</span></span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="badge b-major">Major · Puede romper</span>
+      <span class="tag" style="padding:2px 8px">Directa</span>
+      <span class="tag" style="padding:2px 8px;color:var(--green);border-color:#1f4a30">npm audit: 9.0.0 corrige las 4</span>
+      <span class="tag" style="padding:2px 8px">Snyk tampoco reporta vulnerabilidades en 9.0.0</span>
+    </div>
+  </header>
+
+  <section class="notice orange" aria-label="Veredicto">
+    <h2>Riesgo medio</h2>
+    <p>No existe una versión 8.x sin vulnerabilidades, así que el salto a 9 es obligatorio para corregirlas. Si tus claves RSA son de 2048 bits o más y no usas el algoritmo none, lo más probable es que no tengas que cambiar código.</p>
+  </section>
+
+  <div class="cols">
+    <section class="card" aria-label="Versiones">
+      <div class="card-head"><h2>Versiones y vulnerabilidades</h2></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Versión</th><th>Crít.</th><th>Altas</th><th>Medias</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr><td>9.0.2</td><td>0</td><td>0</td><td>0</td><td>Última</td></tr>
+            <tr><td>9.0.1</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>
+            <tr class="rec"><td>9.0.0</td><td>0</td><td>0</td><td>0</td><td>Recomendada · mínima segura</td></tr>
+            <tr><td>8.5.1</td><td>0</td><td class="h">3</td><td class="m">1</td><td>Instalada</td></tr>
+            <tr><td>8.5.0</td><td>0</td><td class="h">3</td><td class="m">1</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <section class="card" aria-label="Qué cambia">
+        <div class="card-body">
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><h2>Qué cambia en 9.0.0</h2><span class="ref">Resumen con IA del changelog</span></div>
+          <ul class="bullets">
+            <li>Rechaza por defecto claves RSA de menos de 2048 bits</li>
+            <li>El algoritmo none ya no se acepta sin activarlo explícitamente</li>
+            <li>Requiere Node 12 o superior · tu proyecto usa Node 20 ✓</li>
+          </ul>
+          <a href="https://github.com/auth0/node-jsonwebtoken/releases" style="font-size:13px">Ver changelog completo ↗</a>
+        </div>
+      </section>
+      <section class="card" aria-label="Dónde se usa">
+        <div class="card-body">
+          <h2>Dónde se usa en tu proyecto</h2>
+          <ul class="list mono" style="margin:0 -20px -8px">
+            <li><a href="#">src/modules/auth/token.service.ts:42</a><span style="color:var(--muted)">jwt.verify</span></li>
+            <li><a href="#">src/modules/auth/refresh.ts:18</a><span style="color:var(--muted)">jwt.sign</span></li>
+            <li><a href="#">server/middleware/auth.ts:9</a><span style="color:var(--muted)">jwt.verify</span></li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card" aria-label="Chequeos de seguridad">
+    <div class="card-body" style="gap:12px">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><h2>Chequeos de seguridad de 9.0.0</h2><span class="ref">Antes de recomendar una versión</span></div>
+      <div class="checks">
+        <div class="check"><span class="ok">✓</span><div><b>npm audit y Snyk coinciden</b><span>Snyk se usa como segunda referencia</span></div></div>
+        <div class="check"><span class="ok">✓</span><div><b>Sin scripts de instalación nuevos</b><span>No agrega preinstall ni postinstall</span></div></div>
+        <div class="check"><span class="ok">✓</span><div><b>Fuera de cuarentena</b><span>Publicada hace más de 7 días</span></div></div>
+        <div class="check"><span class="ok">✓</span><div><b>No marcada como maliciosa</b><span>En los avisos de npm ni de Snyk</span></div></div>
+      </div>
+      <p class="ref" style="margin:0">La firma del registro se verifica después de instalar, con npm audit signatures.</p>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Qué hacer">
+    <div class="card-body" style="gap:12px">
+      <h2>¿Qué hacemos con este paquete?</h2>
+      <label class="opt"><input type="radio" name="jwt" checked><div><b>Actualizar a 9.0.0</b><span>La mínima que corrige todo. Recomendada.</span></div></label>
+      <label class="opt"><input type="radio" name="jwt"><div><b>Actualizar a 9.0.2 (última)</b><span>Mismo nivel de seguridad que 9.0.0, con más cambios.</span></div></label>
+      <label class="opt"><input type="radio" name="jwt"><div><b>Mantener 8.5.1 por ahora</b><span>Se guarda el motivo y vuelve a avisarte en el próximo escaneo.</span></div></label>
+      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px">
+        <a class="btn secondary" href="1-resultados.html">Cancelar</a>
+        <a class="btn primary" href="1-resultados.html">Guardar decisión</a>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

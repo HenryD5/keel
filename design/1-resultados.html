@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keel · 1 · Resultados del escaneo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- Pantalla 1: lista de paquetes vulnerables. Datos de ejemplo. -->
+<div class="tabbar">
+  <div class="tab">Vulnerabilidades</div>
+  <div class="tabnote">Vista previa · datos de ejemplo</div>
+</div>
+
+<main>
+  <header class="header">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <h1>Vulnerabilidades del proyecto</h1>
+      <p class="sub">mi-proyecto-vue · npm audit hace 12 s · versiones contrastadas con la base pública de Snyk</p>
+    </div>
+    <div class="actions">
+      <div class="seg" role="group" aria-label="Idioma del resumen"><button class="on">ES</button><button>EN</button></div>
+      <button class="btn">Registro de comandos</button>
+      <button class="btn">Correr npm audit</button>
+    </div>
+  </header>
+
+  <section class="card" aria-label="Paquetes vulnerables">
+    <div class="card-head">
+      <div class="pills" role="group" aria-label="Filtrar por riesgo">
+        <button class="pill on">Todos (6)</button>
+        <button class="pill">Seguros (3)</button>
+        <button class="pill">Revisar (2)</button>
+        <button class="pill">Pueden romper (1)</button>
+      </div>
+      <p class="sub">6 paquetes · 1 crítica · 14 altas · 9 medias</p>
+    </div>
+
+    <!-- Fila: checkbox | paquete | versiones | riesgo | enlace -->
+    <div class="row">
+      <input type="checkbox" id="p-axios" checked>
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-axios">axios</label><span class="tag">Directa</span></div>
+        <p class="summary">1.20.0 ya corrige las 13 vulnerabilidades. Sin cambios en peerDependencies ni en Node requerido.</p>
+        <span class="ref">Snyk tampoco reporta vulnerabilidades en 1.20.0</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">1.18.0</span> → <span class="ver-to">1.20.0</span></div><span class="ver-note">Última: 1.21.0, publicada hace 2 días · en cuarentena</span></div>
+      <div class="risk"><span class="badge b-minor">Minor · Revisar</span><div class="sevs"><span class="sev s-h">8 altas</span><span class="sev s-m">5 medias</span></div><span class="fix-ok">npm audit fix ✓</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="p-vite" checked>
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-vite">vite</label><span class="tag">Directa · dev</span></div>
+        <p class="summary">Solo correcciones dentro de 5.4.x. Tus plugins siguen siendo compatibles.</p>
+        <span class="ref">Snyk tampoco reporta vulnerabilidades en 5.4.12</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">5.4.2</span> → <span class="ver-to">5.4.12</span></div><span class="ver-note">Última: 6.x (major, se evita)</span></div>
+      <div class="risk"><span class="badge b-patch">Patch · Seguro</span><div class="sevs"><span class="sev s-h">1 alta</span><span class="sev s-m">2 medias</span></div><span class="fix-ok">npm audit fix ✓</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="p-postcss" checked>
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-postcss">postcss</label><span class="tag">Transitiva · vía tailwindcss</span></div>
+        <p class="summary">tailwindcss acepta 8.4.31, así que no hace falta tocar tailwindcss.</p>
+        <span class="ref">Snyk tampoco reporta vulnerabilidades en 8.4.31</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">8.4.21</span> → <span class="ver-to">8.4.31</span></div><span class="ver-note">Dentro del rango de tailwindcss</span></div>
+      <div class="risk"><span class="badge b-patch">Patch · Seguro</span><div class="sevs"><span class="sev s-m">1 media</span></div><span class="fix-ok">npm audit fix ✓</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="p-i18n" checked>
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-i18n">vue-i18n</label><span class="tag">Directa</span></div>
+        <p class="summary">Corregido dentro de la rama 9.x. No hace falta pasar a 11.x, que cambia la API de mensajes.</p>
+        <span class="ref">Snyk tampoco reporta vulnerabilidades en 9.14.5</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">9.2.2</span> → <span class="ver-to">9.14.5</span></div><span class="ver-note">Última: 11.x (major, se evita)</span></div>
+      <div class="risk"><span class="badge b-minor">Minor · Revisar</span><div class="sevs"><span class="sev s-c">1 crítica</span><span class="sev s-h">1 alta</span></div><span class="fix-ok">npm audit fix ✓</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="p-jwt" checked>
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-jwt">jsonwebtoken</label><span class="tag">Directa</span></div>
+        <p class="summary">Solo se corrige en 9.x, fuera de tu rango ^8.5.1. Cambia la validación de claves y se usa en 3 archivos.</p>
+        <span class="ref">Snyk tampoco reporta vulnerabilidades en 9.0.0</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">8.5.1</span> → <span class="ver-to">9.0.0</span></div><span class="ver-note">No hay 8.x sin vulnerabilidades</span></div>
+      <div class="risk"><span class="badge b-major">Major · Puede romper</span><div class="sevs"><span class="sev s-h">3 altas</span><span class="sev s-m">1 media</span></div><span class="fix-force">npm pediría --force</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="p-braces">
+      <div class="pkg">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="pkg-name" for="p-braces">braces</label><span class="tag">Transitiva · vía chokidar</span></div>
+        <p class="summary">npm audit la da por corregida en 3.0.3, pero la base de Snyk no coincide.</p>
+        <span class="warn">⚠ Snyk aún reporta 1 alta en 3.0.3: revísalo antes de aplicar (aviso, no bloquea)</span>
+      </div>
+      <div class="ver"><div class="ver-line"><span class="ver-from">3.0.2</span> → <span class="ver-to">3.0.3</span></div><span class="ver-note">Sin otra versión candidata</span></div>
+      <div class="risk"><span class="badge b-patch">Patch · Seguro</span><div class="sevs"><span class="sev s-h">1 alta</span></div><span class="fix-ok">npm audit fix ✓</span></div>
+      <a href="2-detalle.html" style="align-self:center;font-size:13px;font-weight:500">Ver riesgo</a>
+    </div>
+  </section>
+</main>
+
+<div class="footer">
+  <div class="footer-in">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span style="font-size:14px;font-weight:500">5 de 6 actualizaciones seleccionadas</span>
+      <span class="warn">Incluye un cambio major: revisa su riesgo antes de aplicar</span>
+    </div>
+    <a class="btn primary" href="3-revisar.html">Revisar y aplicar →</a>
+  </div>
+</div>
+</body>
+</html>

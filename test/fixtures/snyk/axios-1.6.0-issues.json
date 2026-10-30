@@ -1,0 +1,27 @@
+{
+  "data": [
+    {
+      "id": "SNYK-JS-AXIOS-6032459",
+      "type": "issue",
+      "attributes": {
+        "key": "SNYK-JS-AXIOS-6032459",
+        "title": "Server-side Request Forgery (SSRF)",
+        "type": "package_vulnerability",
+        "effective_severity_level": "medium",
+        "problems": [{ "id": "CWE-918", "source": "CWE" }]
+      }
+    },
+    {
+      "id": "SNYK-JS-AXIOS-FAKE-MALWARE",
+      "type": "issue",
+      "attributes": {
+        "key": "SNYK-JS-AXIOS-FAKE-MALWARE",
+        "title": "Embedded payload",
+        "type": "package_vulnerability",
+        "effective_severity_level": "high",
+        "problems": [{ "id": "CWE-506", "source": "CWE" }]
+      }
+    }
+  ],
+  "links": { "next": null }
+}

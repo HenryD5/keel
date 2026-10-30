@@ -1,0 +1,16 @@
+**
+!dist/extension.js
+!dist/webview/**
+!package.json
+!package.nls*.json
+!l10n/**
+!media/**
+!README.md
+!CHANGELOG.md
+!LICENSE
+dist/extension.js.map
+design/**
+docs/**
+test/**
+src/**
+webview-ui/**
