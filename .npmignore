@@ -1,0 +1,12 @@
+**
+!package.json
+!README.md
+!LICENSE
+!dist/
+dist/**
+!dist/cli.js
+!skills/
+skills/**
+!skills/keel-fix-vulnerabilities/
+skills/keel-fix-vulnerabilities/**
+!skills/keel-fix-vulnerabilities/SKILL.md

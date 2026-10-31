@@ -40,12 +40,6 @@
   "bin": {
     "keel-npm": "dist/cli.js"
   },
-  "files": [
-    "dist/cli.js",
-    "skills/**",
-    "README.md",
-    "LICENSE"
-  ],
   "l10n": "./l10n",
   "activationEvents": [],
   "capabilities": {
