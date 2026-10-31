@@ -33,6 +33,7 @@ const emit = defineEmits<{
   openDetail: [name: string];
   rescan: [];
   showLog: [];
+  selectProject: [];
   review: [];
 }>();
 
@@ -98,7 +99,8 @@ function sevs(pkg: PackageReport) {
     <header class="header">
       <div class="stack">
         <h1>{{ t.heading }}</h1>
-        <p v-if="subtitle" class="sub">{{ subtitle }}</p>
+        <p v-if="subtitle" class="sub">{{ subtitle }} · {{ scan?.projectFolder }}</p>
+        <button v-if="scan?.canSelectProject" type="button" class="linkbtn" @click="emit('selectProject')">{{ t.changeProject }}</button>
       </div>
       <div class="actions">
         <div class="seg" role="group" :aria-label="t.langGroup">
@@ -111,6 +113,12 @@ function sevs(pkg: PackageReport) {
         </button>
       </div>
     </header>
+    <section v-if="scan?.registryFindings.length" class="notice orange">
+      <h2>{{ t.registryWarning }}</h2>
+      <p v-for="finding in scan.registryFindings" :key="`${finding.package}:${finding.host}:${finding.reason}`">
+        <span class="mono">{{ finding.package }}</span> · {{ finding.host }} · {{ t.registryReason[finding.reason] }}
+      </p>
+    </section>
 
     <section v-if="error" class="notice red" role="alert">
       <p>{{ error }}</p>

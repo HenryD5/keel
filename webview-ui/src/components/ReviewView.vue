@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { AuditFixPreview } from '../../../src/core/apply/auditFixPreview';
-import { APPLY_STEPS, type ApplyMethod } from '../../../src/core/apply/steps';
+import type { ApplyMethod } from '../../../src/core/apply/steps';
 import type { ApplyStatus, Lang, PlanPayload } from '../../../src/webview/protocol';
 import { STRINGS } from '../i18n';
 
@@ -13,22 +13,31 @@ const props = defineProps<{
   applying: boolean;
   progress: Map<number, { status: ApplyStatus; detail?: string }>;
   error?: string;
+  steps: Array<{ label: string; detail: string }>;
+  outputTail?: string;
+  canRevert: boolean;
+  reportAvailable: boolean;
+  canCreatePr: boolean;
 }>();
 
 const emit = defineEmits<{
   back: [];
   setExact: [exact: boolean];
-  apply: [method: ApplyMethod];
+  apply: [method: ApplyMethod, validate: boolean];
+  revert: [];
+  keep: [];
+  copyReport: [];
+  createPr: [];
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
 const method = ref<ApplyMethod>('exact');
-const steps = computed(() => APPLY_STEPS[method.value]);
+const validate = ref(true);
 const disabled = computed(() =>
-  props.applying || !props.plan || !props.preview || (method.value === 'exact' ? props.plan.changes.length === 0 : props.preview.summary.fixable === 0),
+  props.applying || !props.plan || !props.preview || (method.value === 'exact' ? props.plan.changes.length === 0 && !props.plan.removed?.length : props.preview.summary.fixable === 0),
 );
 const primaryText = computed(() =>
-  method.value === 'audit' ? t.value.reviewRunAuditFix : t.value.reviewInstall(props.plan?.changes.length ?? 0),
+  method.value === 'audit' ? t.value.reviewRunAuditFix : props.plan?.removed?.length ? t.value.removeDependency : t.value.reviewInstall(props.plan?.changes.length ?? 0),
 );
 
 function icon(status: ApplyStatus | undefined): string {
@@ -36,6 +45,7 @@ function icon(status: ApplyStatus | undefined): string {
   if (status === 'done') return 'codicon-pass ok';
   if (status === 'warning') return 'codicon-warning bad';
   if (status === 'failed') return 'codicon-error error-icon';
+  if (status === 'skipped') return 'codicon-debug-step-over warn';
   return 'codicon-circle-outline';
 }
 </script>
@@ -51,7 +61,7 @@ function icon(status: ApplyStatus | undefined): string {
       <p v-if="preview" class="sub">{{ t.reviewSummary(preview.summary.selected, preview.summary.fixable, preview.summary.force) }}</p>
     </header>
 
-    <fieldset class="methods" :disabled="applying">
+    <fieldset v-if="!plan?.removed?.length" class="methods" :disabled="applying">
       <legend>{{ t.reviewMethodLegend }}</legend>
       <label class="method" :class="{ on: method === 'audit' }">
         <input v-model="method" type="radio" name="method" value="audit" />
@@ -63,7 +73,7 @@ function icon(status: ApplyStatus | undefined): string {
       </label>
     </fieldset>
 
-    <template v-if="method === 'audit'">
+    <template v-if="method === 'audit' && !plan?.removed?.length">
       <section class="card">
         <div class="card-head"><h2>{{ t.reviewAuditWhat }}</h2></div>
         <div v-if="!preview" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
@@ -86,6 +96,7 @@ function icon(status: ApplyStatus | undefined): string {
         <div v-if="!plan" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
         <template v-else>
           <ul class="list review-list">
+            <li v-for="item in plan.removed" :key="item.name"><span class="mono">{{ item.name }}</span><span class="warn">{{ t.removeDependency }}</span></li>
             <li v-for="change in plan.changes" :key="change.name">
               <span class="mono">{{ change.name }} {{ change.from }} → {{ change.to }}<span v-if="change.kind === 'override'" class="ref"> · override</span></span>
               <span class="badge" :class="`b-${change.bump}`">{{ change.bump === 'major' ? t.reviewMajorNoForce : t.reviewBump[change.bump] }}</span>
@@ -112,10 +123,21 @@ function icon(status: ApplyStatus | undefined): string {
       <ol class="steps" aria-live="polite">
         <li v-for="(step, index) in steps" :key="step.label">
           <span class="step-status codicon" :class="icon(progress.get(index)?.status)" aria-hidden="true"></span>
-          <code>{{ t.reviewStep(method, index) }}</code>
-          <span>{{ progress.get(index)?.detail ?? t.reviewStepDetail(method, index) }}</span>
+          <code>{{ step.label }}</code>
+          <span>{{ progress.get(index)?.detail ?? step.detail }}</span>
         </li>
       </ol>
+    </section>
+
+    <label class="exact-option"><input v-model="validate" type="checkbox" :disabled="applying" />{{ t.reviewValidate }}</label>
+
+    <section v-if="canRevert" class="notice red">
+      <h2>{{ error }}</h2>
+      <pre v-if="outputTail" class="output-tail">{{ outputTail }}</pre>
+      <div class="buttons">
+        <button type="button" class="btn secondary" @click="emit('keep')">{{ t.keepChanges }}</button>
+        <button type="button" class="btn primary" @click="emit('revert')">{{ t.revertChanges }}</button>
+      </div>
     </section>
 
     <section class="notice blue row-notice" :aria-label="t.reviewRecommendationLabel">
@@ -125,9 +147,11 @@ function icon(status: ApplyStatus | undefined): string {
     <div class="buttons">
       <span v-if="error" class="error-text" role="alert">{{ error }}</span>
       <button type="button" class="btn secondary" :disabled="applying" @click="emit('back')">{{ t.cancel }}</button>
-      <button type="button" class="btn primary" :disabled="disabled" @click="emit('apply', method)">
+      <button type="button" class="btn primary" :disabled="disabled" @click="emit('apply', method, validate)">
         <span v-if="applying" class="codicon codicon-loading spin" aria-hidden="true"></span>{{ primaryText }}
       </button>
+      <button v-if="reportAvailable" type="button" class="btn secondary" @click="emit('copyReport')">{{ t.copyReport }}</button>
+      <button v-if="canCreatePr" type="button" class="btn primary" @click="emit('createPr')">{{ t.createPr }}</button>
     </div>
   </main>
 </template>

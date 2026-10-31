@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { extractBreakingLines } from '../core/impact/breaking';
 import { getChangelog, type ChangelogCache, type GetJson, type Release } from '../core/impact/changelog';
 import { findUsages, SOURCE_EXTENSIONS } from '../core/impact/imports';
+import { removalBlockReason } from '../core/apply/removal';
 import type { PackageReport } from '../core/scan';
 import type { Logger } from '../infra/log';
 import type { ChangelogView, Lang, UsagesView } from '../webview/protocol';
@@ -74,7 +75,21 @@ export class ImpactService {
     await Promise.all(Array.from({ length: READ_CONCURRENCY }, worker));
     usages.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line);
     this.log.info(`Usages of ${name}: ${usages.length} in ${filesWithUsage} files (${files.length} files searched)`);
-    return { usages, files: filesWithUsage, truncated };
+    let removal: UsagesView['removal'];
+    if (usages.length === 0 && !truncated) {
+      try {
+        const manifestText = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.folder, 'package.json')));
+        const manifest = JSON.parse(manifestText);
+        const direct = ['dependencies', 'devDependencies', 'optionalDependencies'].some((key) => typeof manifest[key]?.[name] === 'string');
+        if (direct) {
+          const configUris = await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, '{*.config.*,.*rc*}'), undefined, 100);
+          const configs = await Promise.all(configUris.map(async (uri) => ({ path: uri.path.split('/').at(-1) ?? uri.path, text: new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)) })));
+          const reason = removalBlockReason(manifestText, name, [name.split('/').at(-1) ?? name], configs);
+          removal = reason ? { allowed: false, reason } : { allowed: true };
+        }
+      } catch { /* Sin oferta si no se puede comprobar con seguridad. */ }
+    }
+    return { usages, files: filesWithUsage, truncated, removal };
   }
 
   private async buildChangelog(pkg: PackageReport, to: string, lang: Lang): Promise<ChangelogView> {

@@ -2,7 +2,7 @@
   "name": "keel-npm",
   "displayName": "Keel — Safe npm Fixes",
   "description": "Fix npm vulnerabilities without breaking your project.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "iamhenry",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -15,7 +15,8 @@
   },
   "homepage": "https://github.com/HenryD5/keel#readme",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.95.0",
+    "node": ">=20"
   },
   "categories": [
     "Linters",
@@ -36,8 +37,23 @@
     "theme": "dark"
   },
   "main": "./dist/extension.js",
+  "bin": {
+    "keel-npm": "dist/cli.js"
+  },
+  "files": [
+    "dist/cli.js",
+    "skills/**",
+    "README.md",
+    "LICENSE"
+  ],
   "l10n": "./l10n",
   "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Keel runs explicitly approved npm operations and optional project validation scripts."
+    }
+  },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -77,6 +93,11 @@
         "command": "keel.setSnykToken",
         "title": "%command.setSnykToken.title%",
         "category": "%command.category%"
+      },
+      {
+        "command": "keel.selectProject",
+        "title": "%command.selectProject.title%",
+        "category": "%command.category%"
       }
     ],
     "configuration": {
@@ -101,6 +122,23 @@
           "type": "string",
           "default": "",
           "description": "%configuration.snykOrgId.description%"
+        },
+        "keel.validationScripts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "test",
+            "build"
+          ],
+          "scope": "application",
+          "description": "%configuration.validationScripts.description%"
+        },
+        "keel.pullRequestBaseBranch": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.pullRequestBaseBranch.description%"
         }
       }
     }

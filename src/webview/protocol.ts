@@ -7,6 +7,7 @@ import type { ApplyMethod } from '../core/apply/steps';
 import type { ImportKind } from '../core/impact/imports';
 import type { ReferenceSource } from '../core/reference/types';
 import type { ScanResult } from '../core/scan';
+import type { RegistryFinding } from '../core/audit/registries';
 
 export type Lang = 'es' | 'en';
 
@@ -24,6 +25,9 @@ export interface ScanPayload {
   choices: Record<string, Exclude<Choice, 'keep'>>;
   /** Aviso si `.keel.json` no se pudo leer. */
   keelFileError?: string;
+  registryFindings: RegistryFinding[];
+  projectFolder: string;
+  canSelectProject: boolean;
 }
 
 export interface UsageView {
@@ -41,6 +45,7 @@ export interface UsagesView {
   files: number;
   /** Se cortó la búsqueda por el tope de archivos. */
   truncated: boolean;
+  removal?: { allowed: boolean; reason?: string };
 }
 
 export interface ChangelogView {
@@ -64,11 +69,12 @@ export interface ImpactPayload {
 
 export interface PlanPayload {
   changes: InstallChange[];
+  removed?: InstallPlan['removed'];
   diff: DiffLine[];
   skipped: InstallPlan['skipped'];
 }
 
-export type ApplyStatus = 'running' | 'done' | 'warning' | 'failed';
+export type ApplyStatus = 'running' | 'done' | 'warning' | 'failed' | 'skipped';
 
 /** Extensión → webview. */
 export type HostMessage =
@@ -79,9 +85,11 @@ export type HostMessage =
   | { type: 'impact'; impact: ImpactPayload }
   | { type: 'decisionSaved'; name: string; choice: Choice; keep?: KeepDecision }
   | { type: 'decisionError'; name: string; message: string }
-  | { type: 'plan'; plan: PlanPayload; preview: AuditFixPreview }
+  | { type: 'plan'; plan: PlanPayload; preview: AuditFixPreview; steps: Array<{ label: string; detail: string }> }
+  | { type: 'applyStarted'; steps: Array<{ label: string; detail: string }> }
   | { type: 'applyProgress'; method: ApplyMethod; step: number; status: ApplyStatus; detail?: string }
-  | { type: 'applyDone'; ok: boolean; message?: string }
+  | { type: 'applyDone'; ok: boolean; message?: string; outputTail?: string; canRevert?: boolean; reportAvailable?: boolean; canCreatePr?: boolean }
+  | { type: 'revertDone'; ok: boolean; message?: string }
   | { type: 'lang'; lang: Lang };
 
 /** Webview → extensión. */
@@ -95,7 +103,13 @@ export type WebviewMessage =
   | { type: 'openExternal'; url: string }
   | { type: 'saveDecision'; name: string; choice: Choice; reason?: string }
   | { type: 'requestPlan'; selected: string[]; exact: boolean }
-  | { type: 'apply'; method: ApplyMethod; selected: string[]; exact: boolean };
+  | { type: 'apply'; method: ApplyMethod; selected: string[]; exact: boolean; validate: boolean }
+  | { type: 'revert' }
+  | { type: 'keepChanges' }
+  | { type: 'selectProject' }
+  | { type: 'requestRemovalPlan'; name: string }
+  | { type: 'copyReport' }
+  | { type: 'createPullRequest' };
 
 const LANGS: readonly string[] = ['es', 'en'];
 const CHOICES: readonly string[] = ['min', 'latest', 'keep'];
@@ -114,7 +128,14 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
     case 'ready':
     case 'rescan':
     case 'showLog':
+    case 'revert':
+    case 'keepChanges':
+    case 'selectProject':
+    case 'copyReport':
+    case 'createPullRequest':
       return { type: m.type };
+    case 'requestRemovalPlan':
+      return str('name', 214) ? { type: 'requestRemovalPlan', name: m.name as string } : undefined;
     case 'setLang':
       return LANGS.includes(m.lang as string) ? { type: 'setLang', lang: m.lang as Lang } : undefined;
     case 'requestImpact':
@@ -135,8 +156,8 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
     }
     case 'apply': {
       const names = selected();
-      return names && typeof m.exact === 'boolean' && METHODS.includes(m.method as string)
-        ? { type: 'apply', method: m.method as ApplyMethod, selected: names, exact: m.exact }
+      return names && typeof m.exact === 'boolean' && typeof m.validate === 'boolean' && METHODS.includes(m.method as string)
+        ? { type: 'apply', method: m.method as ApplyMethod, selected: names, exact: m.exact, validate: m.validate }
         : undefined;
     }
     default:

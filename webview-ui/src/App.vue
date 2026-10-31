@@ -24,11 +24,16 @@ const saving = ref<string>();
 const saveError = ref<string>();
 const plan = ref<PlanPayload>();
 const preview = ref<Extract<HostMessage, { type: 'plan' }>['preview']>();
-const exact = ref(false);
+const exact = ref(true);
 const applying = ref(false);
 const applySucceeded = ref(false);
 const applyError = ref<string>();
 const progress = reactive(new Map<number, { status: ApplyStatus; detail?: string }>());
+const applySteps = ref<Array<{ label: string; detail: string }>>([]);
+const outputTail = ref<string>();
+const canRevert = ref(false);
+const reportAvailable = ref(false);
+const canCreatePr = ref(false);
 
 
 const selection = computed(() => {
@@ -56,7 +61,6 @@ function applyScan(payload: ScanPayload): void {
   if (applySucceeded.value) {
     applying.value = false;
     applySucceeded.value = false;
-    screen.value = 'results';
   }
 }
 
@@ -74,6 +78,8 @@ function onMessage(event: MessageEvent<HostMessage>): void {
     case 'scanning':
       scanning.value = true;
       error.value = undefined;
+      applyError.value = undefined;
+      canRevert.value = false;
       break;
     case 'scan':
       scanning.value = false;
@@ -89,17 +95,29 @@ function onMessage(event: MessageEvent<HostMessage>): void {
     case 'plan':
       plan.value = msg.plan;
       preview.value = msg.preview;
+      applySteps.value = msg.steps;
       applyError.value = undefined;
       break;
     case 'applyProgress':
       progress.set(msg.step, { status: msg.status, detail: msg.detail });
       break;
+    case 'applyStarted':
+      applySteps.value = msg.steps;
+      break;
     case 'applyDone':
       applying.value = false;
+      reportAvailable.value = msg.reportAvailable === true;
+      canCreatePr.value = msg.canCreatePr === true;
       if (msg.ok) applySucceeded.value = true;
       else {
         applyError.value = msg.message ?? STRINGS[lang.value].applyFailed;
+        outputTail.value = msg.outputTail;
+        canRevert.value = msg.canRevert === true;
       }
+      break;
+    case 'revertDone':
+      canRevert.value = false;
+      applyError.value = msg.ok ? undefined : msg.message;
       break;
     case 'decisionSaved':
       if (scan.value) {
@@ -127,7 +145,7 @@ function onMessage(event: MessageEvent<HostMessage>): void {
 
 function openReview(): void {
   screen.value = 'review';
-  exact.value = false;
+  exact.value = true;
   plan.value = undefined;
   preview.value = undefined;
   applyError.value = undefined;
@@ -142,12 +160,12 @@ function setExact(value: boolean): void {
   send({ type: 'requestPlan', selected: scoped.value, exact: value });
 }
 
-function apply(method: ApplyMethod): void {
+function apply(method: ApplyMethod, validate: boolean): void {
   applying.value = true;
   applySucceeded.value = false;
   applyError.value = undefined;
   progress.clear();
-  send({ type: 'apply', method, selected: scoped.value, exact: exact.value });
+  send({ type: 'apply', method, selected: scoped.value, exact: exact.value, validate });
 }
 
 function openDetail(name: string): void {
@@ -159,6 +177,15 @@ function openDetail(name: string): void {
   const to = pkg.resolution?.recommended?.version ?? pkg.resolution?.waitingFor?.version;
   if (to && impacts.get(name)?.to !== to) send({ type: 'requestImpact', name, to });
   window.scrollTo(0, 0);
+}
+
+function removeDependency(name: string): void {
+  screen.value = 'review';
+  exact.value = true;
+  plan.value = undefined;
+  preview.value = undefined;
+  progress.clear();
+  send({ type: 'requestRemovalPlan', name });
 }
 
 function setLang(l: Lang): void {
@@ -197,9 +224,18 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     :applying="applying"
     :progress="progress"
     :error="applyError"
+    :steps="applySteps"
+    :output-tail="outputTail"
+    :can-revert="canRevert"
+    :report-available="reportAvailable"
+    :can-create-pr="canCreatePr"
     @back="screen = 'results'"
     @set-exact="setExact"
     @apply="apply"
+    @revert="send({ type: 'revert' })"
+    @keep="canRevert = false; send({ type: 'keepChanges' })"
+    @copy-report="send({ type: 'copyReport' })"
+    @create-pr="send({ type: 'createPullRequest' })"
   />
   <DetailView
     v-else-if="screen === 'detail' && scan && detailPkg"
@@ -213,6 +249,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     @save="saveDecision"
     @open-file="(path, line) => send({ type: 'openFile', path, line })"
     @open-external="(url) => send({ type: 'openExternal', url })"
+    @remove="removeDependency"
   />
   <ResultsView
     v-else
@@ -229,6 +266,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     @open-detail="openDetail"
     @rescan="send({ type: 'rescan' })"
     @show-log="send({ type: 'showLog' })"
+    @select-project="send({ type: 'selectProject' })"
     @review="openReview"
   />
 </template>

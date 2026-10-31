@@ -37,13 +37,19 @@ describe('parseWebviewMessage', () => {
     expect(parseWebviewMessage({ type: 'requestPlan', selected: ['axios'], exact: false })).toEqual({
       type: 'requestPlan', selected: ['axios'], exact: false,
     });
-    expect(parseWebviewMessage({ type: 'apply', method: 'exact', selected: ['axios'], exact: true })).toEqual({
-      type: 'apply', method: 'exact', selected: ['axios'], exact: true,
+    expect(parseWebviewMessage({ type: 'apply', method: 'exact', selected: ['axios'], exact: true, validate: true })).toEqual({
+      type: 'apply', method: 'exact', selected: ['axios'], exact: true, validate: true,
     });
     expect(parseWebviewMessage({ type: 'apply', method: 'force', selected: [], exact: false })).toBeUndefined();
     expect(parseWebviewMessage({ type: 'requestPlan', selected: ['axios'], exact: 'false' })).toBeUndefined();
     expect(parseWebviewMessage({ type: 'requestPlan', selected: [1], exact: false })).toBeUndefined();
     expect(parseWebviewMessage({ type: 'requestPlan', selected: ['x'.repeat(215)], exact: false })).toBeUndefined();
+  });
+
+  it('parses rollback decisions and validates the apply checkbox', () => {
+    expect(parseWebviewMessage({ type: 'revert' })).toEqual({ type: 'revert' });
+    expect(parseWebviewMessage({ type: 'keepChanges' })).toEqual({ type: 'keepChanges' });
+    expect(parseWebviewMessage({ type: 'apply', method: 'exact', selected: [], exact: false })).toBeUndefined();
   });
 
   it('acepta mensajes válidos', () => {

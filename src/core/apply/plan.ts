@@ -22,7 +22,10 @@ export interface DiffLine {
 }
 
 export interface InstallPlan {
+  /** Pinning choice is part of the approved plan and therefore its plan ID. */
+  exact?: boolean;
   changes: InstallChange[];
+  removed?: Array<{ name: string; section: DependencySection; oldSpec: string }>;
   newManifestText: string;
   diff: DiffLine[];
   skipped: Array<{ name: string; reason: string }>;
@@ -92,7 +95,7 @@ export function buildInstallPlan(input: BuildInstallPlanInput): InstallPlan {
   }
 
   text = preserveFinalEol(text, hadFinalEol, formattingOptions.eol ?? '\n');
-  return { changes, newManifestText: text, diff: lineDiff(input.manifestText, text), skipped };
+  return { exact: input.exact, changes, newManifestText: text, diff: lineDiff(input.manifestText, text), skipped };
 }
 
 function sectionFor(depType: string | undefined): DependencySection {

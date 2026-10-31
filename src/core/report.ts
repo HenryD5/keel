@@ -4,6 +4,46 @@ import type { PackageReport, ScanResult } from './scan';
 import type { LatestReason } from './resolver/minSafeVersion';
 import type { Bump } from './resolver/versions';
 
+export interface ApplyReportInput {
+  language: 'es' | 'en';
+  before?: Record<string, number>;
+  after?: Record<string, number>;
+  updated?: Array<{ name: string; from: string; to: string }>;
+  removed?: string[];
+  pending?: Array<{ name: string; reason: string }>;
+  validation?: Array<{ script: string; status: 'passed' | 'skipped' | 'failed'; detail?: string }>;
+  registryWarnings?: Array<{ package: string; host: string; reason: string }>;
+  versionWarnings?: Array<{ name: string; planned: string; installed?: string }>;
+  failedStep?: { name: string; reason: string };
+}
+
+/** Informe Markdown para portapapeles y PR; no infiere éxito de pasos omitidos. */
+export function buildApplyReport(input: ApplyReportInput): string {
+  const es = input.language === 'es';
+  const lines = [`# ${es ? 'Informe de seguridad de dependencias' : 'Dependency security report'}`];
+  const section = (title: string, rows: string[]) => { if (rows.length) lines.push('', `## ${title}`, '', ...rows); };
+  if (input.before) section(es ? 'Vulnerabilidades antes' : 'Vulnerabilities before', countRows(input.before));
+  if (input.after) section(es ? 'Vulnerabilidades después' : 'Vulnerabilities after', countRows(input.after));
+  section(es ? 'Paquetes actualizados' : 'Updated packages', (input.updated ?? []).map((x) => `- **${x.name}**: ${x.from} → ${x.to}`));
+  section(es ? 'Paquetes eliminados' : 'Removed packages', (input.removed ?? []).map((x) => `- **${x}**`));
+  section(es ? 'Paso fallido' : 'Failed step', input.failedStep ? [`- **${input.failedStep.name}**: ${input.failedStep.reason}`] : []);
+  section(es ? 'Vulnerabilidades pendientes' : 'Pending vulnerabilities', (input.pending ?? []).map((x) => `- **${x.name}**: ${x.reason}`));
+  section(es ? 'Validación' : 'Validation', (input.validation ?? []).map((x) => `- **npm run ${x.script}**: ${validationLabel(x.status, es)}${x.detail ? ` — ${x.detail}` : ''}`));
+  section(es ? 'Avisos de registro' : 'Registry warnings', (input.registryWarnings ?? []).map((x) => `- **${x.package}**: ${x.host} (${x.reason})`));
+  section(es ? 'Avisos de versión instalada' : 'Installed version warnings', (input.versionWarnings ?? []).map((x) => `- **${x.name}**: ${es ? 'planificada' : 'planned'} ${x.planned}, ${es ? 'instalada' : 'installed'} ${x.installed ?? (es ? 'no encontrada' : 'not found')}`));
+  const unresolved = (input.pending?.length ?? 0) + (input.failedStep ? 1 : 0) + (input.validation?.filter((x) => x.status !== 'passed').length ?? 0) + (input.registryWarnings?.length ?? 0) + (input.versionWarnings?.length ?? 0);
+  lines.push('', unresolved ? (es ? `**Quedan ${unresolved} elemento(s) sin resolver o verificar.**` : `**${unresolved} item(s) remain unresolved or unverified.**`) : (es ? '**No quedan elementos sin resolver en este informe.**' : '**No unresolved items remain in this report.**'));
+  return `${lines.join('\n')}\n`;
+}
+
+function countRows(counts: Record<string, number>): string[] {
+  return Object.entries(counts).filter(([, n]) => n > 0).map(([name, n]) => `- ${name}: ${n}`).concat(Object.values(counts).every((n) => n === 0) ? ['- 0'] : []);
+}
+
+function validationLabel(status: 'passed' | 'skipped' | 'failed', es: boolean): string {
+  return es ? ({ passed: 'aprobado', skipped: 'omitido', failed: 'falló' } as const)[status] : status;
+}
+
 const SEVERITY_LABEL: Record<Severity, [one: string, many: string]> = {
   critical: ['crítica', 'críticas'],
   high: ['alta', 'altas'],

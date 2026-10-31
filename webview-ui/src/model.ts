@@ -4,6 +4,7 @@ import type { PackageReport } from '../../src/core/scan';
 import type { Lang, ScanPayload } from '../../src/webview/protocol';
 import { formatDate, severityText, STRINGS } from './i18n';
 import { category } from './filter';
+import { defaultSelection } from '../../src/core/selection';
 
 export { category, type Category } from './filter';
 
@@ -33,9 +34,7 @@ export function isKept(pkg: PackageReport, scan: ScanPayload): boolean {
 /** Selección inicial del diseño: todo lo que tiene versión, salvo lo que la segunda fuente no confirma o se decidió mantener. */
 /** Empiezan marcados los que se pueden aplicar, salvo si OSV/Snyk discrepa o el cambio es major: esos los decide el dev. */
 export function defaultSelected(scan: ScanPayload): string[] {
-  return scan.result.packages
-    .filter((p) => isSelectable(p, scan) && p.reference?.agrees !== false && category(p) !== 'break')
-    .map((p) => p.name);
+  return defaultSelection(scan.result.packages, scan.keep);
 }
 
 export function vulnerabilityCount(pkg: PackageReport): number {

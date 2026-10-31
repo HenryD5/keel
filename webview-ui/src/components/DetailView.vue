@@ -20,6 +20,7 @@ const emit = defineEmits<{
   save: [choice: 'min' | 'latest' | 'keep', reason?: string];
   openFile: [path: string, line: number];
   openExternal: [url: string];
+  remove: [name: string];
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
@@ -219,7 +220,11 @@ function save(): void {
               <span class="codicon codicon-loading spin" aria-hidden="true"></span> {{ t.usagesLoading }}
             </p>
             <p v-else-if="usages.status === 'error'" class="sub">{{ t.usagesError(usages.message) }}</p>
-            <p v-else-if="usages.usages.length === 0" class="sub">{{ t.usagesNone }}</p>
+            <div v-else-if="usages.usages.length === 0">
+              <p class="sub">{{ t.usagesNone }}</p>
+              <button v-if="usages.removal?.allowed" type="button" class="btn" @click="emit('remove', pkg.name)">{{ t.removeDependency }}</button>
+              <p v-else-if="usages.removal?.reason" class="sub">{{ t.removeBlocked(usages.removal.reason) }}</p>
+            </div>
             <ul v-else class="list">
               <li v-for="u in usages.usages" :key="`${u.path}:${u.line}:${u.symbol}`">
                 <button type="button" class="linkbtn" :aria-label="t.openAt(u.path, u.line)" @click="emit('openFile', u.path, u.line)">

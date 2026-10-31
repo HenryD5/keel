@@ -6,7 +6,7 @@ export interface ApplyStep {
   args?: readonly string[];
 }
 
-export type ApplyStepStatus = 'done' | 'warning' | 'failed';
+export type ApplyStepStatus = 'running' | 'done' | 'warning' | 'failed' | 'skipped';
 
 export function classifyStepExit(step: ApplyStep, code: number): ApplyStepStatus {
   if (code === 0) return 'done';

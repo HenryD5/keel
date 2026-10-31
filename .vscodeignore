@@ -1,5 +1,8 @@
 **
 !dist/extension.js
+dist/cli.js
+dist/cli.js.map
+skills/**
 !dist/webview/**
 !package.json
 !package.nls*.json

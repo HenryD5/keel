@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { packumentUrl } from '../../src/core/registry/client';
 import { isValidPackageName, isValidVersion } from '../../src/core/validate';
-import { isAllowedCommand, run } from '../../src/infra/exec';
+import { isAllowedCommand, run, runChecked } from '../../src/infra/exec';
 import { assertAllowedUrl, createFetchJson } from '../../src/infra/http';
 import { createLogger } from '../../src/infra/log';
 
@@ -41,9 +41,29 @@ describe('comandos permitidos', () => {
   it('nunca --force ni comandos o argumentos extra', () => {
     expect(isAllowedCommand('npm', ['audit', 'fix', '--force'])).toBe(false);
     expect(isAllowedCommand('npm', ['install', '--force'])).toBe(false);
-    expect(isAllowedCommand('npm', ['run', 'build'])).toBe(false);
+    expect(isAllowedCommand('npm', ['run', 'build'])).toBe(true);
+    expect(isAllowedCommand('npm', ['run', '../build'])).toBe(false);
     expect(isAllowedCommand('npm', ['test'])).toBe(false);
     expect(isAllowedCommand('sh', ['-c', 'npm audit'])).toBe(false);
+  });
+
+  it('permite solo los patrones git y gh validados', () => {
+    for (const [command, args] of [
+      ['git', ['status', '--porcelain']], ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
+      ['git', ['rev-parse', '--show-prefix']],
+      ['git', ['branch', '--list', 'keel/fix-a1b2c3d4']], ['git', ['ls-remote', '--heads', 'origin', 'keel/fix-a1b2c3d4']],
+      ['git', ['switch', '-c', 'keel/fix-a1b2c3d4']], ['git', ['add', '--', 'package.json']], ['git', ['commit', '-F', '-']],
+      ['git', ['push', '-u', 'origin', 'keel/fix-a1b2c3d4']], ['gh', ['--version']], ['gh', ['repo', 'view', '--json', 'defaultBranchRef']],
+      ['gh', ['pr', 'list', '--head', 'keel/fix-a1b2c3d4', '--json', 'url']],
+      ['gh', ['pr', 'create', '--base', 'main', '--head', 'keel/fix-a1b2c3d4', '--title', 'title', '--body', 'body']],
+    ] as const) expect(isAllowedCommand(command, args)).toBe(true);
+    expect(isAllowedCommand('git', ['add', '.'])).toBe(false);
+    expect(isAllowedCommand('git', ['add', '--', 'src/x.ts'])).toBe(false);
+    expect(isAllowedCommand('git', ['switch', '-c', '-x'])).toBe(false);
+    expect(isAllowedCommand('git', ['push', '--force', 'origin', 'main'])).toBe(false);
+    expect(isAllowedCommand('git', ['rev-parse', '--show-toplevel'])).toBe(false);
+    expect(isAllowedCommand('git', ['rev-parse', '--show-prefix', 'extra'])).toBe(false);
+    expect(isAllowedCommand('gh', ['pr', 'create', '--base', 'main', '--head', 'keel/fix-a1b2c3d4', '--title', 'title', '--body', 'body', 'extra', 'extra'])).toBe(false);
   });
 
   it('rechaza un comando no permitido sin lanzar ningún proceso', async () => {
@@ -74,6 +94,20 @@ describe('comandos permitidos', () => {
     expect(lines[0]).toBe('[2026-10-30 12:00:00] $ npm audit --json   (cwd: /project)');
     expect(lines).toContain('{"auditReportVersion":2}');
     expect(lines.at(-1)).toMatch(/exited with code 1/);
+  });
+
+  it('hace fatal cualquier salida no cero e incluye comando y final de stderr', async () => {
+    const spawnImpl = vi.fn(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn() });
+      setImmediate(() => {
+        child.stdout.end('');
+        child.stderr.end('fatal: not a git repository');
+        setImmediate(() => child.emit('close', 128, null));
+      });
+      return child;
+    });
+    await expect(runChecked('git', ['status', '--porcelain'], { cwd: '/project', log: createLogger({ appendLine() {} }), spawnImpl: spawnImpl as never }))
+      .rejects.toThrow('Command failed (exit 128): git status --porcelain\nfatal: not a git repository');
   });
 });
 
