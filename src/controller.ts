@@ -10,7 +10,11 @@ import { APPLY_STEPS, type ApplyMethod } from './core/apply/steps';
 import { isValidScriptName, selectValidationScripts } from './core/apply/validation';
 import { allowedHosts, findDisallowedRegistries, type RegistryFinding } from './core/audit/registries';
 import { KEEL_FILE, keepDecisions, parseKeelFile, serializeKeelFile, withKeep, type KeelFile, type KeepDecision } from './core/decisions';
-import { OsvReference } from './core/reference/osv';
+import { fetchOsvVuln, OsvReference } from './core/reference/osv';
+import { parseAudit } from './core/audit/parseAudit';
+import { parseLockfile } from './core/audit/lockfile';
+import { formatVerifyResult } from './core/verify/format';
+import { parseVulnerabilityList, verifyList } from './core/verify/verify';
 import { isValidSnykOrgId, SnykReference } from './core/reference/snyk';
 import type { SecondReference } from './core/reference/types';
 import { RegistryClient } from './core/registry/client';
@@ -21,7 +25,7 @@ import { projectCandidates, type ProjectFileEntry } from './core/projectFolders'
 import { isValidPackageName, isValidVersion } from './core/validate';
 import { createChangelogCache, ImpactService } from './impact/service';
 import { run, runChecked } from './infra/exec';
-import { createFetchJson } from './infra/http';
+import { createFetchJson, HttpError } from './infra/http';
 import type { Logger } from './infra/log';
 import { KeelPanel } from './webview/panel';
 import type { Choice, HostMessage, Lang, ScanPayload, WebviewMessage } from './webview/protocol';
@@ -73,6 +77,75 @@ export class KeelController {
   async scanCommand(): Promise<void> {
     this.openPanel();
     await this.scan();
+  }
+
+  /** Cruza una lista externa (CVE/GHSA y/o títulos) con el proyecto y abre el resultado en Markdown. */
+  async verifyListCommand(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    type Source = vscode.QuickPickItem & { source: 'clipboard' | 'file' | 'editor' };
+    const sources: Source[] = [
+      { label: vscode.l10n.t('Paste from clipboard'), description: vscode.l10n.t('One CVE, GHSA or title per line'), source: 'clipboard' },
+      { label: vscode.l10n.t('Open a file…'), description: '.txt, .csv, .md', source: 'file' },
+      ...(editor ? [{ label: vscode.l10n.t('Use the active editor'), description: editor.selection.isEmpty ? vscode.l10n.t('Whole document') : vscode.l10n.t('Selection'), source: 'editor' as const }] : []),
+    ];
+    const picked = await vscode.window.showQuickPick(sources, { title: vscode.l10n.t('Keel: Verify Vulnerability List'), placeHolder: vscode.l10n.t('Where is the list?') });
+    if (!picked) return;
+
+    let text: string;
+    if (picked.source === 'clipboard') text = await vscode.env.clipboard.readText();
+    else if (picked.source === 'editor' && editor) text = editor.document.getText(editor.selection.isEmpty ? undefined : editor.selection);
+    else {
+      const [file] = (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { [vscode.l10n.t('Text')]: ['txt', 'csv', 'tsv', 'md'], '*': ['*'] } })) ?? [];
+      if (!file) return;
+      text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+    }
+
+    let items: ReturnType<typeof parseVulnerabilityList>;
+    try {
+      items = parseVulnerabilityList(text);
+    } catch (err) {
+      void vscode.window.showErrorMessage(vscode.l10n.t('Keel: {0}', err instanceof Error ? err.message : String(err)));
+      return;
+    }
+    if (items.length === 0) {
+      void vscode.window.showWarningMessage(vscode.l10n.t('Keel: the list has no CVE, GHSA codes or vulnerability titles.'));
+      return;
+    }
+    const folder = await this.selectProject(false);
+    if (!folder) {
+      void vscode.window.showErrorMessage(vscode.l10n.t('Keel: {0}', vscode.l10n.t('No package-lock.json found in the workspace root. Keel needs it to read installed versions (create it with npm install).')));
+      return;
+    }
+
+    try {
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Keel: verifying {0} entries…', items.length) },
+        async () => {
+          const cwd = folder.fsPath;
+          const lock = parseLockfile(new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, 'package-lock.json'))));
+          const audit = parseAudit((await run('npm', ['audit', '--json'], { cwd, log: this.log, timeoutMs: 120_000 })).stdout);
+          const getJson = (url: string) => this.fetchJson(url).catch((err: unknown) => {
+            if (err instanceof HttpError && err.status === 404) return null;
+            throw err;
+          });
+          return verifyList(items, { audit, lock, getVuln: (id) => fetchOsvVuln(id, getJson) });
+        },
+      );
+      const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: formatVerifyResult(result, this.lang()) });
+      await vscode.window.showTextDocument(doc, { preview: false });
+      void vscode.commands.executeCommand('markdown.showPreviewToSide');
+      const { resolved, pending, unverified } = result.totals;
+      const summary = vscode.l10n.t('{0} resolved, {1} pending, {2} unverified.', resolved, pending, unverified);
+      if (result.allResolved) void vscode.window.showInformationMessage(vscode.l10n.t('Keel: everything on the list is resolved. {0}', summary));
+      else if (pending > 0) {
+        const choice = await vscode.window.showWarningMessage(vscode.l10n.t('Keel: not everything is fixed yet. {0}', summary), vscode.l10n.t('Scan'));
+        if (choice) await this.scanCommand();
+      } else void vscode.window.showWarningMessage(vscode.l10n.t('Keel: nothing is pending, but some entries could not be verified. {0}', summary));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log.info(`Verify failed: ${message}`);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Keel: {0}', message), vscode.l10n.t('Show log')).then((choice) => choice && this.channel.show());
+    }
   }
 
   async selectProjectCommand(): Promise<void> {

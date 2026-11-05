@@ -12,7 +12,11 @@ import { isValidScriptName } from '../core/apply/validation';
 import { allowedHosts, findDisallowedRegistries } from '../core/audit/registries';
 import { keepDecisions, parseKeelFile } from '../core/decisions';
 import { findProjectUsages } from '../core/impact/walker';
-import { OsvReference } from '../core/reference/osv';
+import { OsvReference, fetchOsvVuln } from '../core/reference/osv';
+import { parseLockfile } from '../core/audit/lockfile';
+import { parseAudit } from '../core/audit/parseAudit';
+import { formatVerifyResult } from '../core/verify/format';
+import { parseVulnerabilityList, verifyList } from '../core/verify/verify';
 import { RegistryClient } from '../core/registry/client';
 import { buildApplyReport } from '../core/report';
 import { scan, type ScanResult } from '../core/scan';
@@ -40,6 +44,7 @@ export interface CliOptions {
   validate: boolean;
   format: 'markdown' | 'json';
   lang: 'en' | 'es';
+  file?: string;
   positionals: string[];
 }
 
@@ -52,7 +57,7 @@ export function parseCliArgs(argv: readonly string[]): CliOptions {
     options: {
       cwd: { type: 'string' }, json: { type: 'boolean' }, 'quarantine-days': { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' },
       select: { type: 'string' }, 'keep-range': { type: 'boolean' }, choice: { type: 'string', multiple: true }, plan: { type: 'string' }, remove: { type: 'string' },
-      scripts: { type: 'string' }, validate: { type: 'boolean', default: true }, format: { type: 'string' }, lang: { type: 'string' },
+      scripts: { type: 'string' }, validate: { type: 'boolean', default: true }, format: { type: 'string' }, lang: { type: 'string' }, file: { type: 'string' },
     },
   });
   const days = Number(values['quarantine-days'] ?? 7);
@@ -71,7 +76,7 @@ export function parseCliArgs(argv: readonly string[]): CliOptions {
   return {
     command: positionals[0], cwd, json: values.json ?? false, quarantineDays: days, help: values.help ?? false, version: values.version ?? false,
     select: splitList(values.select ?? ''), keepRange: values['keep-range'] ?? false, choices, plan: values.plan, remove: values.remove, scripts, validate: values.validate !== false,
-    format: (values.format as 'markdown' | 'json' | undefined) ?? 'markdown', lang: (values.lang as 'en' | 'es' | undefined) ?? 'en', positionals: positionals.slice(1),
+    format: (values.format as 'markdown' | 'json' | undefined) ?? 'markdown', lang: (values.lang as 'en' | 'es' | undefined) ?? 'en', file: values.file, positionals: positionals.slice(1),
   };
 }
 
@@ -85,13 +90,14 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     options = parseCliArgs(argv);
     if (options.version) return output(options, VERSION, { version: VERSION });
     if (options.help || !options.command) return output(options, helpText(), { help: helpText() });
-    if (!['scan', 'plan', 'remove', 'apply', 'revert', 'report'].includes(options.command)) throw new UsageError(`Unknown command: ${options.command}`);
+    if (!['scan', 'plan', 'remove', 'apply', 'revert', 'report', 'verify'].includes(options.command)) throw new UsageError(`Unknown command: ${options.command}`);
     await ensureProject(options.cwd);
     if (options.command === 'scan') return output(options, await scanOutput(options));
     if (options.command === 'plan') return output(options, await planOutput(options));
     if (options.command === 'remove') return output(options, await removalOutput(options));
     if (options.command === 'apply') return await applyCommand(options);
     if (options.command === 'revert') return await revertCommand(options);
+    if (options.command === 'verify') return await verifyCommand(options);
     return output(options, await reportOutput(options));
   } catch (error) {
     const code = error instanceof EnvironmentError ? 3 : error instanceof UsageError || error instanceof RefusedError ? 2 : 1;
@@ -100,6 +106,28 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     else process.stderr.write(`keel-npm: ${message}\n`);
     return code;
   }
+}
+
+async function verifyCommand(options: CliOptions): Promise<number> {
+  const listText = options.file === '-' ? await readStdin() : options.file ? await readFile(resolve(options.cwd, options.file), 'utf8') : options.positionals.join('\n');
+  const items = parseVulnerabilityList(listText);
+  if (items.length === 0) throw new UsageError('verify needs a list: --file <path>, --file - (stdin) or codes as arguments.');
+  const lock = parseLockfile(await readFile(join(options.cwd, 'package-lock.json'), 'utf8'));
+  const audit = parseAudit((await runCommand(options.cwd, 'npm', ['audit', '--json'], 120_000)).stdout);
+  const getJson = async (url: string) => {
+    const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30_000), headers: { Accept: 'application/json', 'User-Agent': 'keel-npm' } });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    return response.json();
+  };
+  const result = await verifyList(items, { audit, lock, getVuln: (id) => fetchOsvVuln(id, getJson) });
+  return output(options, formatVerifyResult(result, options.lang), result);
+}
+
+async function readStdin(): Promise<string> {
+  let text = '';
+  for await (const chunk of process.stdin) text += String(chunk);
+  return text;
 }
 
 async function runScan(options: CliOptions): Promise<{ result: ScanResult; keep: ReturnType<typeof keepDecisions>; registryFindings: ReturnType<typeof findDisallowedRegistries> }> {
@@ -260,6 +288,6 @@ function output(options: CliOptions, value: unknown, jsonValue?: unknown, code =
   process.stdout.write(options.json ? `${JSON.stringify(document)}\n` : `${typeof value === 'string' ? value : JSON.stringify(value, null, 2)}\n`);
   return code;
 }
-function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
+function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n  keel-npm verify --file <list.txt|-> [--lang en|es]   (or: keel-npm verify CVE-… GHSA-…)\n\nverify checks a list of CVE/GHSA codes and/or vulnerability titles (one per line) against the current project.\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
 
 if (require.main === module) void main().then((code) => { process.exitCode = code; });

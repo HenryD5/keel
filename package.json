@@ -92,6 +92,11 @@
         "command": "keel.selectProject",
         "title": "%command.selectProject.title%",
         "category": "%command.category%"
+      },
+      {
+        "command": "keel.verifyList",
+        "title": "%command.verifyList.title%",
+        "category": "%command.category%"
       }
     ],
     "configuration": {

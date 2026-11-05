@@ -10,6 +10,22 @@ This repository ships `keel-npm` for the same safe scan, plan, approval, apply, 
 
 The plan ID binds the approved selection, choices, changes, manifest, and lockfile. Apply refuses stale plans, writes that plan to `package.json`, runs `npm install`, and never delegates changes to `npm audit fix`. Planned versions are pinned by default; `--keep-range` preserves the dependency range and allows npm to install a newer version within it. After install Keel checks the real lockfile versions: a pinned mismatch fails and offers revert, while a kept-range mismatch is reported as a warning. Reports always use installed lockfile versions. After success Keel rescans before reporting and deletes the snapshot. After failure it retains a snapshot, but revert refuses if `package.json` or `package-lock.json` changed in the meantime. Keel never uses `--force`. The generic agent workflow is in `skills/keel-fix-vulnerabilities/SKILL.md`.
 
+### Verify an external vulnerability list
+
+**Keel: Verify Vulnerability List** in VS Code and `keel-npm verify` answer "did I fix everything on this list?" for a report from another scanner. Put one entry per line: a CVE or GHSA code, a vulnerability title, or both (`CVE-2024-4068 Asymmetric denial of service`). Repeated lines are grouped.
+
+```bash
+keel-npm verify --file vulnerabilities.txt --lang es
+pbpaste | keel-npm verify --file -
+keel-npm verify CVE-2024-4068 GHSA-jr5f-v2jv-69x6 --json
+```
+
+- **Codes** are exact: Keel fetches the advisory from OSV (following a CVE to its GHSA alias), checks every installed copy of the affected package in `package-lock.json`, and cross-checks `npm audit`. Each one is *fixed*, *not installed*, or *still vulnerable* with the first fixed version.
+- **Titles only** are approximate: Keel maps the type (XSS, ReDoS, path traversal, prototype pollution…) to CWEs and lists the advisories of that type that `npm audit` still reports. With none left, the entry is *likely resolved*. Unrecognized types, such as "Insecure functionality", are marked unverified.
+- When a line has both, Keel also warns if the code does not look like the stated type.
+
+The command reads the project and contacts `api.osv.dev` only; it changes nothing.
+
 ## The problem
 
 `npm audit fix --force` can upgrade a dependency to its latest version, including a breaking major release. Meanwhile, `npm audit` identifies vulnerabilities but does not tell you the minimum version to upgrade to. Keel fills that gap by calculating and reviewing a safer candidate before anything changes.
@@ -49,6 +65,7 @@ The plan ID binds the approved selection, choices, changes, manifest, and lockfi
 - **Keel: Show Command Log** — show the commands Keel ran and their results.
 - **Keel: Set Snyk Token** — store or clear the optional Snyk API token. Snyk's API generally requires an Enterprise plan; without a token, Keel uses OSV.
 - **Keel: Select Project Folder** — choose among qualifying npm projects in the workspace.
+- **Keel: Verify Vulnerability List** — check whether a list of CVE/GHSA codes or vulnerability titles from another scanner is fixed. Take the list from the clipboard, a file, or the active editor; the result opens as Markdown.
 
 ### Settings
 

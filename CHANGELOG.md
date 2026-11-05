@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Keel: Verify Vulnerability List** command and `keel-npm verify` check an external vulnerability list (CVE/GHSA codes, report titles, or both, one per line) against the current project. Codes are resolved through OSV (following CVE → GHSA aliases) and compared with the installed lockfile versions and `npm audit`; title-only entries are matched by vulnerability type (CWE) against the advisories that remain. In VS Code the list comes from the clipboard, a file, or the active editor, and the result opens as Markdown.
+
 ## [0.2.0] - 2026-10-30
 
 ### Fixed

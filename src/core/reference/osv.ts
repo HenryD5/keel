@@ -24,7 +24,7 @@ export interface OsvVuln {
   summary?: string;
   aliases?: string[];
   withdrawn?: string;
-  database_specific?: { severity?: string };
+  database_specific?: { severity?: string; cwe_ids?: string[] };
   affected?: OsvAffected[];
 }
 
@@ -34,6 +34,18 @@ export interface OsvQueryResponse {
 }
 
 export type PostJson = (url: string, body: unknown) => Promise<unknown>;
+
+export const OSV_VULN_URL = 'https://api.osv.dev/v1/vulns/';
+const OSV_ID = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9._:-]+$/;
+
+/** Un aviso por su ID (CVE, GHSA…). `getJson` devuelve `null` si OSV responde 404. */
+export async function fetchOsvVuln(id: string, getJson: (url: string) => Promise<unknown>): Promise<OsvVuln | undefined> {
+  if (!OSV_ID.test(id) || id.length > 64) throw new Error(`Invalid advisory ID: ${JSON.stringify(id)}`);
+  const data = (await getJson(OSV_VULN_URL + encodeURIComponent(id))) as OsvVuln | null;
+  if (data === null) return undefined;
+  if (typeof data !== 'object' || typeof data.id !== 'string') throw new Error(`Unexpected OSV response for ${id}.`);
+  return data;
+}
 
 const MAX_PAGES = 5;
 

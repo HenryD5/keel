@@ -23,6 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('keel.showLog', () => channel.show()),
     vscode.commands.registerCommand('keel.setSnykToken', () => setSnykTokenCommand(context, log)),
     vscode.commands.registerCommand('keel.selectProject', () => keel.selectProjectCommand()),
+    vscode.commands.registerCommand('keel.verifyList', () => keel.verifyListCommand()),
   );
 }
 
