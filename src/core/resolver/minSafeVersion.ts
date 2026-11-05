@@ -1,7 +1,7 @@
 import semver from 'semver';
 import type { Advisory, Severity } from '../audit/types';
 import type { Packument } from '../registry/types';
-import { ageInDays, bumpType, isInQuarantine, isVulnerable, type Bump } from './versions';
+import { advisoriesFor, ageInDays, bumpType, isInQuarantine, isVulnerable, type Bump } from './versions';
 
 export interface ResolveInput {
   packument: Packument;
@@ -56,6 +56,30 @@ export interface ResolveResult {
   safeWithoutMajor: boolean;
   /** Todas las versiones seguras mayores que la instalada, en orden ascendente (con o sin cuarentena). */
   safeVersions: string[];
+  /**
+   * Sin versión segura en la línea instalada: la última de esa línea y por qué no sirve.
+   * Explica por qué no se recomienda, p. ej., 3.2.7 cuando otra fuente la muestra limpia.
+   */
+  lineBlocker?: LineBlocker;
+  /**
+   * Sin versión segura en la línea instalada: la versión de esa línea que deja menos vulnerabilidades,
+   * si deja menos que la instalada. Corrige en parte sin salto major.
+   */
+  bestInLine?: PartialFix;
+}
+
+export interface PartialFix extends VersionInfo {
+  /** IDs de los avisos que corrige respecto a la instalada. */
+  fixedIds: number[];
+  /** IDs de los avisos que siguen. */
+  remainingIds: number[];
+}
+
+export interface LineBlocker {
+  version: string;
+  reason: 'vulnerable' | 'deprecated' | 'malicious';
+  /** IDs (npm audit) de los avisos que todavía la afectan. */
+  advisoryIds: number[];
 }
 
 /**
@@ -104,7 +128,40 @@ export function resolveMinSafeVersion(input: ResolveInput): ResolveResult {
     latest: latestInfo(input, recommended, info, excluded),
     safeWithoutMajor: safe.some((s) => s.bump !== 'major'),
     safeVersions,
+    lineBlocker: safe.some((s) => s.bump !== 'major') ? undefined : lineBlocker(newer, input, excluded),
+    bestInLine: safe.some((s) => s.bump !== 'major') ? undefined : bestInLine(newer, input, excluded, info),
   };
+}
+
+const SEVERITY_WEIGHT: Record<Severity, number> = { critical: 10_000, high: 1_000, moderate: 100, low: 10, info: 1 };
+const score = (list: readonly Advisory[]) => list.reduce((sum, a) => sum + SEVERITY_WEIGHT[a.severity], 0);
+
+/** La versión de la línea instalada que más reduce el riesgo; a igualdad, la más cercana. */
+function bestInLine(newer: string[], input: ResolveInput, excluded: ReadonlySet<string>, info: (v: string) => VersionInfo): PartialFix | undefined {
+  const { packument, installed, advisories } = input;
+  const current = score(advisoriesFor(installed, advisories));
+  let best: { version: string; score: number } | undefined;
+  for (const v of newer) {
+    if (bumpType(installed, v) === 'major' || packument.versions[v]?.deprecated || excluded.has(v)) continue;
+    if (info(v).inQuarantine && input.severity !== 'critical') continue;
+    const s = score(advisoriesFor(v, advisories));
+    if (s < current && (!best || s < best.score)) best = { version: v, score: s };
+  }
+  if (!best) return undefined;
+  const remaining = new Set(advisoriesFor(best.version, advisories).map((a) => a.id));
+  const before = advisoriesFor(installed, advisories).map((a) => a.id);
+  return { ...info(best.version), fixedIds: before.filter((id) => !remaining.has(id)), remainingIds: [...remaining] };
+}
+
+function lineBlocker(newer: string[], input: ResolveInput, excluded: ReadonlySet<string>): LineBlocker | undefined {
+  const { packument, installed, advisories } = input;
+  const inLine = newer.filter((v) => bumpType(installed, v) !== 'major');
+  const version = inLine.filter((v) => !packument.versions[v]?.deprecated).at(-1) ?? inLine.at(-1);
+  if (!version) return undefined;
+  const affecting = advisoriesFor(version, advisories);
+  if (affecting.length > 0) return { version, reason: 'vulnerable', advisoryIds: affecting.map((a) => a.id) };
+  if (excluded.has(version)) return { version, reason: 'malicious', advisoryIds: [] };
+  return { version, reason: 'deprecated', advisoryIds: [] };
 }
 
 function latestInfo(

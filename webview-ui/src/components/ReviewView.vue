@@ -63,13 +63,21 @@ function icon(status: ApplyStatus | undefined): string {
 
     <fieldset v-if="!plan?.removed?.length" class="methods" :disabled="applying">
       <legend>{{ t.reviewMethodLegend }}</legend>
-      <label class="method" :class="{ on: method === 'audit' }">
-        <input v-model="method" type="radio" name="method" value="audit" />
-        <div><b>{{ t.reviewAuditTitle }}</b><p>{{ t.reviewAuditSub }}</p><span class="cmd">npm audit fix</span></div>
-      </label>
       <label class="method" :class="{ on: method === 'exact' }">
-        <input v-model="method" type="radio" name="method" value="exact" />
-        <div><b>{{ t.reviewExactTitle }}</b><p>{{ t.reviewExactSub }}</p><span class="cmd">{{ t.reviewExactCommand }}</span></div>
+        <input v-model="method" class="visually-hidden" type="radio" name="method" value="exact" />
+        <span class="pick" aria-hidden="true"><span class="codicon codicon-check"></span></span>
+        <div>
+          <div class="inline"><b>{{ t.reviewExactTitle }}</b><span class="badge b-patch">{{ t.reviewRecommended }}</span><span v-if="method === 'exact'" class="picked">{{ t.reviewSelected }}</span></div>
+          <p>{{ t.reviewExactSub }}</p><span class="cmd">{{ t.reviewExactCommand }}</span>
+        </div>
+      </label>
+      <label class="method" :class="{ on: method === 'audit' }">
+        <input v-model="method" class="visually-hidden" type="radio" name="method" value="audit" />
+        <span class="pick" aria-hidden="true"><span class="codicon codicon-check"></span></span>
+        <div>
+          <div class="inline"><b>{{ t.reviewAuditTitle }}</b><span v-if="method === 'audit'" class="picked">{{ t.reviewSelected }}</span></div>
+          <p>{{ t.reviewAuditSub }}</p><span class="cmd">npm audit fix</span>
+        </div>
       </label>
     </fieldset>
 

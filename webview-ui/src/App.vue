@@ -243,7 +243,7 @@ function toggle(name: string, on: boolean): void {
   selected.value = on ? [...current, name] : current;
 }
 
-function saveDecision(choice: 'min' | 'latest' | 'keep', reason?: string): void {
+function saveDecision(choice: 'min' | 'latest' | 'line' | 'keep', reason?: string): void {
   if (!detail.value) return;
   saving.value = detail.value;
   saveError.value = undefined;

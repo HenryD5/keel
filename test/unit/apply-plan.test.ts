@@ -67,6 +67,17 @@ describe('plan de instalación', () => {
     expect(plan.changes[0]!.to).toBe(vite.resolution!.latest!.version);
   });
 
+  it('con la elección line instala la mejor versión sin salto major', async () => {
+    const result = await scan(deps());
+    const vite = result.packages.find((pkg) => pkg.name === 'vite')!;
+    expect(vite.resolution!.recommended!.bump).toBe('major');
+    const best = vite.resolution!.bestInLine!;
+    expect(best.remainingIds.length).toBeLessThan(vite.advisories.length);
+    const plan = buildInstallPlan({ result, manifestText: fixtureText('lockfile/sample-package.json'), selected: ['vite'], choices: { vite: 'line' }, exact: true });
+    expect(plan.changes[0]).toMatchObject({ name: 'vite', to: best.version });
+    expect(plan.changes[0]!.bump).not.toBe('major');
+  });
+
   it('omite paquetes sin recomendación y no cambia una selección vacía', async () => {
     const result = await scan(deps());
     result.packages[0] = { ...result.packages[0]!, resolution: undefined, error: 'timeout' };

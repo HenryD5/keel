@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- When a major upgrade is required, the package detail explains why the latest version of the installed line is not recommended (for example, vitest 3.2.7), listing the advisories, CVEs and ranges that still affect it; the results row names that version too.
+- A link to the package's OSV page next to Snyk.
+- When fixing everything requires a major upgrade, the package detail offers the version of the installed line that leaves the fewest vulnerabilities ("Upgrade to 5.4.21 without leaving 5.x"), showing how many it fixes and which CVEs stay open. If no version in the line improves anything (as with vitest 3.2.7), it says so. The CLI accepts `--choice name=line`.
+
+### Changed
+
+- The Snyk link opens the package page with all its versions instead of a single version.
+- Borders and radio buttons use neutral colors instead of the theme's panel and focus colors, which in some themes made unselected options look selected.
+- The review screen shows the selected application method clearly: a check mark and "Selected" label on the chosen card, the recommended method first, and plainer titles.
+
 ## [0.4.0] - 2026-11-05
 
 ### Added

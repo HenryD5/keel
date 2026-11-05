@@ -35,7 +35,8 @@ export interface BuildInstallPlanInput {
   result: ScanResult;
   manifestText: string;
   selected: string[];
-  choices: Record<string, 'min' | 'latest'>;
+  /** `line`: la mejor versión sin salto major (corrección parcial). */
+  choices: Record<string, 'min' | 'latest' | 'line'>;
   exact: boolean;
 }
 
@@ -68,7 +69,8 @@ export function buildInstallPlan(input: BuildInstallPlanInput): InstallPlan {
     const latest = resolution?.latest;
     const useLatest =
       input.choices[name] === 'latest' && latest !== undefined && (latest.reason === 'not-needed' || latest.reason === 'major-avoided');
-    const target = useLatest ? latest : resolution?.recommended;
+    const useLine = input.choices[name] === 'line' && resolution?.bestInLine !== undefined;
+    const target = useLine ? resolution!.bestInLine : useLatest ? latest : resolution?.recommended;
     if (!target) {
       skipped.push({ name, reason: pkg.error ? 'error' : (resolution?.status ?? 'no-recommendation') });
       continue;

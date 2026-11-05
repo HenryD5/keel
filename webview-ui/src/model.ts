@@ -15,6 +15,7 @@ export function targetVersion(pkg: PackageReport, scan: ScanPayload): string | u
   const r = pkg.resolution;
   if (!r) return undefined;
   if (scan.choices[pkg.name] === 'latest' && r.latest) return r.latest.version;
+  if (scan.choices[pkg.name] === 'line' && r.bestInLine) return r.bestInLine.version;
   return r.recommended?.version;
 }
 
@@ -95,7 +96,12 @@ export function versionNote(lang: Lang, pkg: PackageReport): string {
   const r = pkg.resolution;
   if (!r) return '';
   if (r.status === 'quarantine-only' && r.waitingFor) return t.waitUntil(formatDate(lang, r.waitingFor.waitUntil));
-  if (r.recommended?.bump === 'major' && !r.safeWithoutMajor) return t.noSafeInMajor(majorOf(pkg.installed));
+  if (r.recommended?.bump === 'major' && !r.safeWithoutMajor) {
+    const b = r.lineBlocker;
+    if (b?.reason === 'vulnerable') return t.lineBlocked(b.version, majorOf(pkg.installed));
+    if (b?.reason === 'deprecated') return t.lineDeprecated(b.version, majorOf(pkg.installed));
+    return t.noSafeInMajor(majorOf(pkg.installed));
+  }
   const latest = r.latest;
   if (!latest || latest.reason === 'recommended') {
     if (!pkg.direct && pkg.parents[0]?.name && pkg.auditFix.kind === 'audit-fix') return t.withinParentRange(pkg.parents[0].name);

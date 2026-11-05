@@ -5,7 +5,7 @@ import type { ApplyMethod } from './steps';
 export interface PlanIdentityInput {
   method: ApplyMethod | 'remove';
   selection: readonly string[];
-  choices: Readonly<Record<string, 'min' | 'latest'>>;
+  choices: Readonly<Record<string, 'min' | 'latest' | 'line'>>;
   plan: InstallPlan;
   manifestText: string;
   lockfileText: string;

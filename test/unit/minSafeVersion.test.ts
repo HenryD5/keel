@@ -19,6 +19,33 @@ function realCase(name: string, installed: string, overrides: Partial<ResolveInp
 }
 
 describe('resolveMinSafeVersion · casos reales', () => {
+  it('explica por qué no sirve la última de la línea instalada (caso vitest 3.2.7)', () => {
+    const packument = makePackument({ '3.2.6': { ageDays: 200 }, '3.2.7': { ageDays: 120 }, '4.1.11': { ageDays: 80 } });
+    const advisories = [advisory('>=2.1.0 <4.1.11', 'high', 82)];
+    const r = resolveMinSafeVersion({ packument, installed: '3.2.6', advisories, severity: 'high', quarantineDays: 7, now: FIXTURE_NOW });
+    expect(r.recommended?.version).toBe('4.1.11');
+    expect(r.lineBlocker).toEqual({ version: '3.2.7', reason: 'vulnerable', advisoryIds: [82] });
+  });
+
+  it('ofrece la mejor versión sin salto major cuando corrige una parte', () => {
+    const packument = makePackument({ '3.2.6': { ageDays: 200 }, '3.2.7': { ageDays: 120 }, '3.2.8': { ageDays: 1 }, '4.1.11': { ageDays: 80 } });
+    const advisories = [advisory('>=2.1.0 <4.1.11', 'high', 1), advisory('<3.2.7', 'critical', 2)];
+    const r = resolveMinSafeVersion({ packument, installed: '3.2.6', advisories, severity: 'critical', quarantineDays: 7, now: FIXTURE_NOW });
+    expect(r.recommended?.version).toBe('4.1.11');
+    expect(r.bestInLine).toMatchObject({ version: '3.2.7', bump: 'patch', fixedIds: [2], remainingIds: [1] });
+  });
+
+  it('no ofrece versión sin salto major si no reduce nada (vitest 3.2.7 = 3.2.6)', () => {
+    const packument = makePackument({ '3.2.6': { ageDays: 200 }, '3.2.7': { ageDays: 120 }, '4.1.11': { ageDays: 80 } });
+    const r = resolveMinSafeVersion({ packument, installed: '3.2.6', advisories: [advisory('>=2.1.0 <4.1.11', 'high', 1)], severity: 'high', quarantineDays: 7, now: FIXTURE_NOW });
+    expect(r.bestInLine).toBeUndefined();
+    expect(r.lineBlocker?.version).toBe('3.2.7');
+  });
+
+  it('sin salto major obligatorio no hay bloqueo de línea', () => {
+    expect(realCase('axios', '1.18.0').lineBlocker).toBeUndefined();
+  });
+
   it('axios 1.18.0 → 1.20.0; la última 1.21.0 está en cuarentena', () => {
     const r = realCase('axios', '1.18.0');
     expect(r.status).toBe('ok');

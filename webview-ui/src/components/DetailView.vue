@@ -4,8 +4,8 @@ import type { PackageReport } from '../../../src/core/scan';
 import type { ImpactPayload, Lang, ScanPayload } from '../../../src/webview/protocol';
 import { formatDate, severityName, STRINGS } from '../i18n';
 import { SEVERITY_ORDER, type Severity } from '../../../src/core/audit/types';
-import { snykUrl } from '../../../src/core/reference/snykUrl';
-import { candidateVersion, kindTag, riskLevel, vulnerabilityCount } from '../model';
+import { osvPackageUrl, snykUrl } from '../../../src/core/reference/snykUrl';
+import { candidateVersion, kindTag, majorOf as majorOfVersion, riskLevel, vulnerabilityCount } from '../model';
 
 const props = defineProps<{
   lang: Lang;
@@ -18,7 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   back: [];
-  save: [choice: 'min' | 'latest' | 'keep', reason?: string];
+  save: [choice: 'min' | 'latest' | 'line' | 'keep', reason?: string];
   openFile: [path: string, line: number];
   openExternal: [url: string];
   remove: [name: string];
@@ -30,7 +30,12 @@ const severityLabel = (s: Severity) => severityName(props.lang, s);
 const ghsaOf = (url: string) => url.match(/GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}/i)?.[0];
 const r = computed(() => props.pkg.resolution);
 const candidate = computed(() => candidateVersion(props.pkg));
-const target = computed(() => (props.scan.choices[props.pkg.name] === 'latest' && r.value?.latest ? r.value.latest.version : candidate.value));
+const target = computed(() => {
+  const chosen = props.scan.choices[props.pkg.name];
+  if (chosen === 'latest' && r.value?.latest) return r.value.latest.version;
+  if (chosen === 'line' && r.value?.bestInLine) return r.value.bestInLine.version;
+  return candidate.value;
+});
 const bump = computed(() => r.value?.recommended?.bump ?? r.value?.waitingFor?.bump);
 const level = computed(() => riskLevel(props.pkg));
 const ref2 = computed(() => props.pkg.reference);
@@ -45,10 +50,16 @@ const latestOption = computed(() => {
   return latest.reason === 'not-needed' || latest.reason === 'major-avoided' ? latest.version : undefined;
 });
 
-const initialChoice = (): 'min' | 'latest' | 'keep' => {
-  if (props.scan.keep[props.pkg.name] || !candidate.value) return 'keep';
-  return props.scan.choices[props.pkg.name] === 'latest' && latestOption.value ? 'latest' : 'min';
+const initialChoice = (): 'min' | 'latest' | 'line' | 'keep' => {
+  const chosen = props.scan.choices[props.pkg.name];
+  if (props.scan.keep[props.pkg.name]) return 'keep';
+  if (chosen === 'line' && r.value?.bestInLine) return 'line';
+  if (!candidate.value) return 'keep';
+  return chosen === 'latest' && latestOption.value ? 'latest' : 'min';
 };
+/** Opción sin salto major: corrige una parte y deja el resto pendiente. */
+const lineOption = computed(() => r.value?.bestInLine);
+const lineRemaining = computed(() => props.pkg.advisories.filter((a) => lineOption.value?.remainingIds.includes(a.id)));
 const choice = ref(initialChoice());
 const reason = ref(props.scan.keep[props.pkg.name]?.reason ?? '');
 watch(
@@ -78,6 +89,9 @@ const verdict = computed(() => {
 });
 
 const tableRows = computed(() => props.pkg.versionTable ?? []);
+/** Con salto major obligatorio: la última versión de la línea instalada y lo que la bloquea. */
+const blocker = computed(() => (bump.value === 'major' ? r.value?.lineBlocker : undefined));
+const blockerAdvisories = computed(() => props.pkg.advisories.filter((a) => blocker.value?.advisoryIds.includes(a.id)));
 function status(row: NonNullable<PackageReport['versionTable']>[number]): string {
   const out: string[] = [];
   if (row.roles.includes('latest')) out.push(t.value.roleLatest);
@@ -144,14 +158,40 @@ function save(): void {
         <span v-if="ref2 && !ref2.error && ref2.agrees" class="tag lg">{{ t.refAgrees(ref2.source, ref2.version) }}</span>
         <span v-else-if="ref2 && !ref2.error" class="tag lg warn-tag">{{ t.checkSourcesBad(ref2.source) }}</span>
       </div>
-      <button type="button" class="linkbtn" @click="emit('openExternal', snykUrl(pkg.name, target))">
-        {{ t.seeOnSnyk(target) }}<span class="codicon codicon-link-external" aria-hidden="true"></span>
-      </button>
+      <div class="inline">
+        <button type="button" class="linkbtn" @click="emit('openExternal', snykUrl(pkg.name))">
+          {{ t.seeOnSnyk(pkg.name) }}<span class="codicon codicon-link-external" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="linkbtn" @click="emit('openExternal', osvPackageUrl(pkg.name))">
+          {{ t.seeOnOsv(pkg.name) }}<span class="codicon codicon-link-external" aria-hidden="true"></span>
+        </button>
+        <span class="ref">{{ t.linksHint }}</span>
+      </div>
     </header>
 
     <section class="notice" :class="level === 'low' ? 'blue' : 'orange'" :aria-label="t.verdictLabel">
       <h2>{{ t.risk[level] }}</h2>
       <p>{{ verdict }}</p>
+    </section>
+
+    <section v-if="blocker" class="card" :aria-label="t.whyNotTitle(blocker.version)">
+      <div class="card-body">
+        <h2>{{ t.whyNotTitle(blocker.version) }}</h2>
+        <template v-if="blocker.reason === 'vulnerable'">
+          <p class="summary">{{ t.whyNotVulnerable(blocker.version, blockerAdvisories.length) }}</p>
+          <ul class="facts">
+            <li v-for="a in blockerAdvisories" :key="a.id">
+              <span class="sev" :class="`s-${a.severity}`">{{ severityLabel(a.severity) }}</span>
+              <button v-for="cve in a.cves ?? []" :key="cve" type="button" class="cve link-cve" @click="emit('openExternal', `https://osv.dev/vulnerability/${cve}`)">{{ cve }}</button>
+              <button v-if="ghsaOf(a.url)" type="button" class="cve link-cve faint" @click="emit('openExternal', a.url)">{{ ghsaOf(a.url) }}</button>
+              <span class="ctitle">{{ a.title }} · <span class="mono">{{ t.affects(a.range) }}</span></span>
+            </li>
+          </ul>
+          <p class="ref">{{ t.whyNotSnyk }}</p>
+        </template>
+        <p v-else-if="blocker.reason === 'deprecated'" class="summary">{{ t.whyNotDeprecated(blocker.version) }}</p>
+        <p v-else class="summary">{{ t.whyNotMalicious(blocker.version) }}</p>
+      </div>
     </section>
 
     <section class="card" :aria-label="t.advisoriesTitle(pkg.installed, pkg.advisories.length)">
@@ -302,6 +342,17 @@ function save(): void {
             <input v-model="choice" type="radio" name="decision" value="latest" />
             <div><b>{{ t.decisionLatest(latestOption) }}</b><span>{{ t.decisionLatestSub(r.recommended.version) }}</span></div>
           </label>
+          <label v-if="lineOption" class="opt">
+            <input v-model="choice" type="radio" name="decision" value="line" />
+            <div>
+              <b>{{ t.decisionLine(lineOption.version, majorOfVersion(pkg.installed)) }}</b>
+              <span>{{ t.decisionLineSub(lineOption.fixedIds.length, lineOption.remainingIds.length) }}</span>
+              <span v-if="lineRemaining.length" class="line-left">
+                <template v-for="a in lineRemaining" :key="a.id"><span class="cve">{{ a.cves?.[0] ?? ghsaOf(a.url) ?? a.id }}</span> </template>
+              </span>
+            </div>
+          </label>
+          <p v-else-if="blocker?.reason === 'vulnerable'" class="ref no-line">{{ t.noLineOption(majorOfVersion(pkg.installed), blocker.version, pkg.installed) }}</p>
           <label class="opt">
             <input v-model="choice" type="radio" name="decision" value="keep" />
             <div><b>{{ t.decisionKeep(pkg.installed) }}</b><span>{{ t.decisionKeepSub }}</span></div>

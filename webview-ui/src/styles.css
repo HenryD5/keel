@@ -3,9 +3,10 @@
   --bg: var(--vscode-editor-background);
   --card: var(--vscode-sideBar-background, var(--vscode-editor-background));
   --bar: var(--vscode-sideBar-background, var(--vscode-editor-background));
-  --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
-  --row-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
-  --control-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  /* Bordes neutros derivados del texto: panel-border puede ser amarillo o azul según el tema y parecer «seleccionado». */
+  --border: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+  --row-border: color-mix(in srgb, var(--vscode-foreground) 11%, transparent);
+  --control-border: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
   --fg: var(--vscode-foreground);
   --muted: var(--vscode-descriptionForeground);
   --faint: var(--vscode-descriptionForeground);
@@ -90,7 +91,7 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; }
 
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 20px; padding: 18px 20px; border-top: 1px solid var(--row-border); }
 .card-head + .row { border-top: 0; }
-.row input[type='checkbox'] { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.row input[type='checkbox'] { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--btn); flex: none; }
 .pkg { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .pkg-name { font-family: var(--mono); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
 .tag { font-size: 12px; color: var(--muted); border: 1px solid var(--control-border); border-radius: 4px; padding: 1px 6px; }
@@ -174,7 +175,7 @@ td.low { color: var(--low); font-weight: 500; }
 .options { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px; }
 .options legend { padding: 0 0 12px; font-size: 14px; font-weight: 600; }
 .opt { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; cursor: pointer; }
-.opt input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.opt input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--btn); flex: none; }
 .opt b { display: block; font-size: 14px; font-weight: 500; }
 .opt span { font-size: 13px; color: var(--muted); }
 .reason { display: flex; flex-direction: column; gap: 6px; margin-left: 30px; }
@@ -186,9 +187,18 @@ td.low { color: var(--low); font-weight: 500; }
 
 .methods { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 16px; }
 .methods legend { padding: 0 0 12px; font-size: 14px; font-weight: 600; }
-.method { flex: 1 1 320px; min-width: 0; display: flex; gap: 12px; padding: 16px 18px; border-radius: 10px; border: 1px solid var(--control-border); background: var(--card); cursor: pointer; }
-.method.on { border-color: var(--accent); background: color-mix(in srgb, var(--blue) 8%, var(--card)); }
-.method input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+/* Bordes neutros: el color del tema (panel-border, focusBorder) puede ser amarillo o azul y parecer «marcado». */
+.method { flex: 1 1 320px; min-width: 0; display: flex; gap: 12px; padding: 16px 18px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--fg) 16%, transparent); background: transparent; cursor: pointer; }
+.method.on { border-color: var(--btn); box-shadow: inset 0 0 0 1px var(--btn); background: color-mix(in srgb, var(--btn) 14%, var(--card)); }
+.method:not(.on) { opacity: 0.8; }
+.method:not(.on):hover { opacity: 1; border-color: color-mix(in srgb, var(--fg) 32%, transparent); }
+.method:has(input:focus-visible) { outline: 1px dashed var(--fg); outline-offset: 3px; }
+.pick { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 40%, transparent); background: transparent; display: inline-flex; align-items: center; justify-content: center; }
+.pick .codicon { font-size: 13px; visibility: hidden; }
+.method.on .pick { background: var(--btn); border-color: var(--btn); color: var(--btn-fg); }
+.method.on .pick .codicon { visibility: visible; }
+.picked { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--btn); color: var(--btn-fg); }
+.method input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--btn); flex: none; }
 .method b { display: block; font-size: 15px; font-weight: 500; }
 .method p { margin: 4px 0 8px; font-size: 13px; line-height: 1.55; color: var(--muted); }
 .cmd { display: inline-block; font-family: var(--mono); font-size: 12px; color: var(--fg); background: var(--code); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
@@ -201,7 +211,7 @@ td.low { color: var(--low); font-weight: 500; }
 .diff .del { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--red); }
 .diff .add { background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); }
 .exact-option { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 20px 8px; border-top: 1px solid var(--row-border); cursor: pointer; }
-.exact-option input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.exact-option input { width: 18px; height: 18px; margin: 0; accent-color: var(--btn); }
 
 .steps { margin: 0; padding: 0; list-style: none; }
 .steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 20px; border-top: 1px solid var(--row-border); }
@@ -242,3 +252,11 @@ td.low { color: var(--low); font-weight: 500; }
 .advisories li { display: flex; flex-direction: column; gap: 6px; padding: 12px 20px; border-top: 1px solid var(--row-border); }
 .advisories li:first-child { border-top: 0; }
 .advisories .atitle { font-size: 13px; line-height: 1.5; }
+.line-left { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.no-line { margin: 0 0 0 30px; }
+
+/* Radios propios: el radio nativo sin marcar se ve relleno en algunos temas oscuros y parece elegido. */
+input[type='radio']:not(.visually-hidden) { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin: 2px 0 0; flex: none; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--fg) 45%, transparent); background: transparent; cursor: pointer; }
+input[type='radio']:not(.visually-hidden):checked { border-color: var(--btn); background: radial-gradient(circle, var(--btn) 0 4px, transparent 4.5px); }
+input[type='radio']:not(.visually-hidden):disabled { opacity: 0.4; cursor: default; }
+input[type='radio']:not(.visually-hidden):focus-visible { outline: 1px dashed var(--fg); outline-offset: 2px; }

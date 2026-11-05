@@ -13,7 +13,8 @@ import type { VerifyResult } from '../core/verify/verify';
 export type Lang = 'es' | 'en';
 
 /** Qué versión eligió el dev en el detalle. `keep` se guarda en `.keel.json`; el resto vive en la sesión. */
-export type Choice = 'min' | 'latest' | 'keep';
+/** `line`: la mejor versión sin salto major, aunque solo corrija una parte. */
+export type Choice = 'min' | 'latest' | 'line' | 'keep';
 
 export interface ScanPayload {
   result: ScanResult;
@@ -124,7 +125,7 @@ export type WebviewMessage =
 export const MAX_LIST_LENGTH = 200_000;
 
 const LANGS: readonly string[] = ['es', 'en'];
-const CHOICES: readonly string[] = ['min', 'latest', 'keep'];
+const CHOICES: readonly string[] = ['min', 'latest', 'line', 'keep'];
 const METHODS: readonly string[] = ['audit', 'exact'];
 
 /** El webview es contenido no confiable para la extensión: cada mensaje se valida antes de usarse. */
