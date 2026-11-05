@@ -29,6 +29,7 @@ const emit = defineEmits<{
   copyReport: [];
   createPr: [];
   includeCompanions: [companions: Array<{ name: string; version: string }>];
+  retryPlan: [];
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
@@ -117,7 +118,11 @@ function icon(status: ApplyStatus | undefined): string {
     <template v-if="method === 'audit' && !plan?.removed?.length">
       <section class="card">
         <div class="card-head"><h2>{{ t.reviewAuditWhat }}</h2></div>
-        <div v-if="!preview" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
+        <div v-if="!preview && error && !applying" class="empty plan-error" role="alert">
+          <span class="codicon codicon-error error-icon" aria-hidden="true"></span><span>{{ error }}</span>
+          <button type="button" class="btn" @click="emit('retryPlan')"><span class="codicon codicon-refresh" aria-hidden="true"></span>{{ t.retry }}</button>
+        </div>
+        <div v-else-if="!preview" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
         <ul v-else class="list review-list">
           <li v-for="pkg in preview.packages" :key="pkg.name">
             <span class="mono">{{ pkg.name }} {{ pkg.from }}<template v-if="pkg.to"> → {{ pkg.to }}</template></span>
@@ -134,7 +139,11 @@ function icon(status: ApplyStatus | undefined): string {
     <div v-else class="cols">
       <section class="card">
         <div class="card-head"><h2>{{ t.reviewInstallWhat }}</h2></div>
-        <div v-if="!plan" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
+        <div v-if="!plan && error && !applying" class="empty plan-error" role="alert">
+          <span class="codicon codicon-error error-icon" aria-hidden="true"></span><span>{{ error }}</span>
+          <button type="button" class="btn" @click="emit('retryPlan')"><span class="codicon codicon-refresh" aria-hidden="true"></span>{{ t.retry }}</button>
+        </div>
+        <div v-else-if="!plan" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
         <template v-else>
           <ul class="list review-list">
             <li v-for="item in plan.removed" :key="item.name"><span class="mono">{{ item.name }}</span><span class="warn">{{ t.removeDependency }}</span></li>
@@ -151,7 +160,11 @@ function icon(status: ApplyStatus | undefined): string {
       </section>
       <section class="card">
         <div class="card-head"><h2>package.json</h2></div>
-        <div v-if="!plan" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
+        <div v-if="!plan && error && !applying" class="empty plan-error" role="alert">
+          <span class="codicon codicon-error error-icon" aria-hidden="true"></span><span>{{ error }}</span>
+          <button type="button" class="btn" @click="emit('retryPlan')"><span class="codicon codicon-refresh" aria-hidden="true"></span>{{ t.retry }}</button>
+        </div>
+        <div v-else-if="!plan" class="empty"><span class="codicon codicon-loading spin" aria-hidden="true"></span>{{ t.reviewPlanning }}</div>
         <div v-else class="diff" aria-label="package.json diff">
           <div v-for="(line, index) in plan.diff" :key="index" :class="line.kind">{{ line.kind === 'add' ? '+ ' : line.kind === 'del' ? '- ' : '  ' }}{{ line.text }}</div>
         </div>

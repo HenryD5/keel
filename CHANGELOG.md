@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-05
+
+### Fixed
+
+- "Review and apply" stayed on "Calculating the current plan…" forever in 0.7.0: the webview sent a reactive (Proxy) list that VS Code could not clone, so the request never reached the extension. Messages are now always sent as plain data.
+- If the install plan does not arrive within a minute, or fails, the review screen shows the error with a Retry button instead of loading forever.
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

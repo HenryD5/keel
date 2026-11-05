@@ -18,8 +18,16 @@ export interface ViewState {
 
 const api = acquireVsCodeApi<ViewState>();
 
+/**
+ * postMessage clona el mensaje (structured clone) y falla con DataCloneError si lleva objetos
+ * reactivos de Vue (Proxy). Se envía siempre una copia plana.
+ */
+export function toPlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function send(message: WebviewMessage): void {
-  api.postMessage(message);
+  api.postMessage(toPlain(message));
 }
 
 export function loadState(): ViewState {

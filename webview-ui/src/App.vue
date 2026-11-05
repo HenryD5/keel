@@ -83,7 +83,7 @@ function onMessage(event: MessageEvent<HostMessage>): void {
       if (msg.scan) applyScan(msg.scan);
       if (msg.screen === 'verify') screen.value = 'verify';
       if (screen.value === 'detail' && detailPkg.value) openDetail(detailPkg.value.name);
-      if (screen.value === 'review' && scan.value) send({ type: 'requestPlan', selected: scoped.value, exact: exact.value });
+      if (screen.value === 'review' && scan.value) requestPlan();
       break;
     case 'scanning':
       scanning.value = true;
@@ -103,6 +103,7 @@ function onMessage(event: MessageEvent<HostMessage>): void {
       impacts.set(msg.impact.name, msg.impact);
       break;
     case 'plan':
+      clearTimeout(planTimer);
       plan.value = msg.plan;
       preview.value = msg.preview;
       applySteps.value = msg.steps;
@@ -173,12 +174,24 @@ function onMessage(event: MessageEvent<HostMessage>): void {
   }
 }
 
+/** Pide el plan y, si no llega a tiempo, muestra un error con la opción de reintentar en vez de cargar sin fin. */
+const PLAN_TIMEOUT_MS = 60_000;
+let planTimer: ReturnType<typeof setTimeout> | undefined;
+function requestPlan(): void {
+  applyError.value = undefined;
+  clearTimeout(planTimer);
+  planTimer = setTimeout(() => {
+    if (screen.value === 'review' && !plan.value) applyError.value = STRINGS[lang.value].planTimeout;
+  }, PLAN_TIMEOUT_MS);
+  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value, companions: companions.value });
+}
+
 function includeCompanions(extra: Array<{ name: string; version: string }>): void {
   const byName = new Map(companions.value.map((c) => [c.name, c]));
   for (const c of extra) byName.set(c.name, c);
   companions.value = [...byName.values()];
   plan.value = undefined;
-  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value, companions: companions.value });
+  requestPlan();
 }
 
 function openReview(): void {
@@ -189,14 +202,14 @@ function openReview(): void {
   preview.value = undefined;
   applyError.value = undefined;
   progress.clear();
-  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value, companions: companions.value });
+  requestPlan();
   window.scrollTo(0, 0);
 }
 
 function setExact(value: boolean): void {
   exact.value = value;
   plan.value = undefined;
-  send({ type: 'requestPlan', selected: scoped.value, exact: value, companions: companions.value });
+  requestPlan();
 }
 
 function apply(method: ApplyMethod, validate: boolean): void {
@@ -310,6 +323,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     @copy-report="send({ type: 'copyReport' })"
     @create-pr="send({ type: 'createPullRequest' })"
     @include-companions="includeCompanions"
+    @retry-plan="plan = undefined; requestPlan()"
   />
   <DetailView
     v-else-if="screen === 'detail' && scan && detailPkg"
