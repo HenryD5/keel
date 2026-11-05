@@ -10,6 +10,7 @@ import {
   isSelectable,
   kindTag,
   referenceCounts,
+  chosenTarget,
   rowSummary,
   SEVERITIES,
   targetVersion,
@@ -56,7 +57,7 @@ const filters = computed(() => [
 ]);
 const selectable = computed(() => (props.scan ? visible.value.filter((p) => isSelectable(p, props.scan!)) : []));
 const majorSelected = computed(() =>
-  visible.value.some((p) => props.scoped.includes(p.name) && p.resolution?.recommended?.bump === 'major'),
+  visible.value.some((p) => props.scoped.includes(p.name) && (props.scan && chosenTarget(p, props.scan) ? chosenTarget(p, props.scan)!.bump : p.resolution?.recommended?.bump) === 'major'),
 );
 
 const totalsText = computed(() => {
@@ -80,12 +81,16 @@ const subtitle = computed(() => {
 });
 
 function bumpClass(pkg: PackageReport): string {
+  const chosen = props.scan ? chosenTarget(pkg, props.scan) : undefined;
+  if (chosen) return chosen.left > 0 ? 'b-partial' : `b-${chosen.bump}`;
   const bump = pkg.resolution?.recommended?.bump;
   return bump ? `b-${bump}` : 'b-none';
 }
 
 function bumpLabel(pkg: PackageReport): string {
   const r = pkg.resolution;
+  const chosen = props.scan ? chosenTarget(pkg, props.scan) : undefined;
+  if (chosen) return chosen.left > 0 ? t.value.bumpPartial(t.value.reviewBump[chosen.bump]) : t.value.bump[chosen.bump];
   if (r?.recommended) return t.value.bump[r.recommended.bump];
   if (r?.status === 'quarantine-only') return t.value.checkQuarantineBad;
   return t.value.noVersion;
@@ -181,7 +186,7 @@ function sevs(pkg: PackageReport) {
               <span v-if="isKept(pkg, scan)" class="tag warn-tag">{{ t.decisionKeep(pkg.installed) }}</span>
             </div>
             <p class="summary">{{ rowSummary(lang, pkg, scan) }}</p>
-            <template v-if="pkg.reference">
+            <template v-if="pkg.reference && !chosenTarget(pkg, scan)">
               <span v-if="pkg.reference.error" class="ref">{{ t.refError(pkg.reference.source, pkg.reference.error) }}</span>
               <span v-else-if="pkg.reference.agrees" class="ref">{{ t.refAgrees(pkg.reference.source, pkg.reference.version) }}</span>
               <span v-else class="warn">
@@ -200,7 +205,7 @@ function sevs(pkg: PackageReport) {
               <span class="codicon codicon-arrow-right" aria-label="→"></span>
               <span class="ver-to">{{ targetVersion(pkg, scan) ?? pkg.resolution?.waitingFor?.version ?? '—' }}</span>
             </div>
-            <span class="ver-note">{{ versionNote(lang, pkg) }}</span>
+            <span class="ver-note">{{ chosenTarget(pkg, scan) ? t.chosenNote : versionNote(lang, pkg) }}</span>
           </div>
           <div class="risk">
             <span class="badge" :class="bumpClass(pkg)">{{ bumpLabel(pkg) }}</span>

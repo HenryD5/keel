@@ -1,3 +1,4 @@
+import type { VersionChoice } from './plan';
 import { createHash } from 'node:crypto';
 import type { InstallPlan } from './plan';
 import type { ApplyMethod } from './steps';
@@ -5,7 +6,7 @@ import type { ApplyMethod } from './steps';
 export interface PlanIdentityInput {
   method: ApplyMethod | 'remove';
   selection: readonly string[];
-  choices: Readonly<Record<string, 'min' | 'latest' | 'line'>>;
+  choices: Readonly<Record<string, VersionChoice>>;
   plan: InstallPlan;
   manifestText: string;
   lockfileText: string;

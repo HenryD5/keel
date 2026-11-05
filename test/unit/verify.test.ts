@@ -121,3 +121,11 @@ describe('mensajes de verificación del webview', () => {
     expect(parseWebviewMessage({ type: 'loadVerifyFile' })).toEqual({ type: 'loadVerifyFile' });
   });
 });
+
+describe('elección de versión desde el webview', () => {
+  it('exige una versión exacta válida con la elección version', () => {
+    expect(parseWebviewMessage({ type: 'saveDecision', name: 'vitest', choice: 'version', version: '3.2.7' })).toMatchObject({ choice: 'version', version: '3.2.7' });
+    expect(parseWebviewMessage({ type: 'saveDecision', name: 'vitest', choice: 'version', version: '^3.2.7' })).toBeUndefined();
+    expect(parseWebviewMessage({ type: 'saveDecision', name: 'vitest', choice: 'version' })).toBeUndefined();
+  });
+});

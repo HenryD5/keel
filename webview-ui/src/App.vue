@@ -132,7 +132,7 @@ function onMessage(event: MessageEvent<HostMessage>): void {
         if (msg.keep) scan.value.keep[msg.name] = msg.keep;
         else delete scan.value.keep[msg.name];
         if (msg.choice === 'keep') delete scan.value.choices[msg.name];
-        else scan.value.choices[msg.name] = msg.choice;
+        else scan.value.choices[msg.name] = msg.choice === 'version' && msg.version ? { version: msg.version } : (msg.choice as 'min' | 'latest' | 'line');
         const current = selection.value.filter((n) => n !== msg.name);
         selected.value = msg.choice === 'keep' ? current : [...current, msg.name];
       }
@@ -243,11 +243,11 @@ function toggle(name: string, on: boolean): void {
   selected.value = on ? [...current, name] : current;
 }
 
-function saveDecision(choice: 'min' | 'latest' | 'line' | 'keep', reason?: string): void {
+function saveDecision(choice: 'min' | 'latest' | 'line' | 'version' | 'keep', reason?: string, version?: string): void {
   if (!detail.value) return;
   saving.value = detail.value;
   saveError.value = undefined;
-  send({ type: 'saveDecision', name: detail.value, choice, reason });
+  send({ type: 'saveDecision', name: detail.value, choice, reason, ...(version ? { version } : {}) });
 }
 
 onMounted(() => {

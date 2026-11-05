@@ -89,5 +89,6 @@
   "failed": "fallida",
   "Text": "Texto",
   "The list has no CVE, GHSA codes or vulnerability titles.": "No hay códigos CVE, GHSA ni títulos de vulnerabilidades para comparar.",
-  "The file is too large to compare ({0} characters maximum).": "El archivo es demasiado grande para compararlo (máximo {0} caracteres)."
+  "The file is too large to compare ({0} characters maximum).": "El archivo es demasiado grande para compararlo (máximo {0} caracteres).",
+  "Version {0} is not available for {1}.": "La versión {0} no está disponible para {1}."
 }

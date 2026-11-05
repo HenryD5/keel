@@ -87,7 +87,7 @@ h2 { margin: 0; font-size: 14px; font-weight: 600; }
 
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--control-border); background: transparent; color: var(--muted); font: 500 13px var(--sans); cursor: pointer; }
-.pill.on { border-color: var(--accent); background: var(--blue-bg); color: var(--fg); }
+.pill.on { border-color: var(--btn); background: var(--blue-bg); color: var(--fg); }
 
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 20px; padding: 18px 20px; border-top: 1px solid var(--row-border); }
 .card-head + .row { border-top: 0; }
@@ -260,3 +260,16 @@ input[type='radio']:not(.visually-hidden) { appearance: none; -webkit-appearance
 input[type='radio']:not(.visually-hidden):checked { border-color: var(--btn); background: radial-gradient(circle, var(--btn) 0 4px, transparent 4.5px); }
 input[type='radio']:not(.visually-hidden):disabled { opacity: 0.4; cursor: default; }
 input[type='radio']:not(.visually-hidden):focus-visible { outline: 1px dashed var(--fg); outline-offset: 2px; }
+
+/* Detalle: decisión arriba y bloques largos con scroll propio. */
+.scroll-y { max-height: 340px; overflow-y: auto; }
+.bullets.scroll-y { max-height: 240px; }
+.list.scroll-y { max-height: 280px; }
+.scroll-y thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+tr.pickable { cursor: pointer; }
+tr.pickable:hover td, tr.pickable:focus-visible td { background: color-mix(in srgb, var(--btn) 12%, transparent); }
+tr.pickable:focus-visible { outline: 1px dashed var(--fg); outline-offset: -1px; }
+.decision-card { scroll-margin-top: 16px; }
+.text-input { min-height: 34px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--vscode-input-border, var(--control-border)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-size: 13px; max-width: 280px; }
+.version-check { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); }
+.b-partial { background: var(--med-bg); color: var(--med); }

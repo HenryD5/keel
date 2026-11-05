@@ -7,7 +7,7 @@ import type { Packument } from './registry/types';
 import { combinePredictions, predictAuditFix, type AuditFixPrediction } from './resolver/auditFix';
 import { compareManifests, type ManifestChecks } from './resolver/manifestDiff';
 import { resolveMinSafeVersion, type ResolveResult } from './resolver/minSafeVersion';
-import { buildVersionTable, type VersionRow } from './resolver/versionTable';
+import { buildVersionOptions, buildVersionTable, type VersionRow } from './resolver/versionTable';
 import type { ReferenceCheck, SecondReference } from './reference/types';
 import { cveAliases, ghsaOf } from './reference/osv';
 import { isValidPackageName, isValidVersion } from './validate';
@@ -49,6 +49,8 @@ export interface PackageReport {
   reference?: ReferenceCheck;
   /** Filas de la tabla de versiones de la pantalla de detalle. */
   versionTable?: VersionRow[];
+  /** Todas las versiones más nuevas que la instalada, para elegir una a mano. */
+  versionOptions?: VersionRow[];
   /** Repositorio del registro, para el changelog. */
   repository?: Packument['repository'];
   /** Error al consultar el registro: el paquete se muestra sin recomendación. */
@@ -171,7 +173,8 @@ async function analyzePackage(entry: AuditEntry, lock: Lockfile, manifest: Manif
     quarantineDays: deps.quarantineDays,
   });
 
-  return { ...report, resolution, checks, auditFix, reference, versionTable, repository: packument.repository };
+  const versionOptions = buildVersionOptions({ packument, installed, advisories: entry.advisories, resolution, excluded, now: deps.now, quarantineDays: deps.quarantineDays });
+  return { ...report, resolution, checks, auditFix, reference, versionTable, versionOptions, repository: packument.repository };
 }
 
 /** Añade a cada aviso sus CVE (alias de OSV). Si OSV falla, los avisos quedan como estaban. */

@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { buildInstallPlan, type InstallPlan } from '../core/apply/plan';
+import { buildInstallPlan, type InstallPlan, type VersionChoice } from '../core/apply/plan';
 import { createPlanId } from '../core/apply/planId';
 import { buildRemovalPlan, removalBlockReason } from '../core/apply/removal';
 import { runApply, runRevert, type ApplySnapshot, type CommandResult, type RunnerAdapters } from '../core/apply/runner';
@@ -27,7 +27,7 @@ const CACHE_DIR = join('node_modules', '.cache', 'keel');
 declare const __KEEL_VERSION__: string;
 const VERSION = typeof __KEEL_VERSION__ === 'string' ? __KEEL_VERSION__ : '0.0.0-test';
 
-type Choice = 'min' | 'latest' | 'line';
+type Choice = VersionChoice;
 export interface CliOptions {
   command?: string;
   cwd: string;
@@ -64,9 +64,9 @@ export function parseCliArgs(argv: readonly string[]): CliOptions {
   if (!Number.isInteger(days) || days < 0) throw new UsageError('--quarantine-days must be a non-negative integer.');
   const choices: Record<string, Choice> = {};
   for (const raw of values.choice ?? []) {
-    const match = raw.match(/^([^=]+)=(min|latest|line)$/);
-    if (!match) throw new UsageError('--choice must use package=min, package=latest or package=line.');
-    choices[match[1]!] = match[2] as Choice;
+    const match = raw.match(/^([^=]+)=(min|latest|line|\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/);
+    if (!match) throw new UsageError('--choice must use package=min, package=latest, package=line or package=<exact version>.');
+    choices[match[1]!] = /^\d/.test(match[2]!) ? { version: match[2]! } : (match[2] as 'min' | 'latest' | 'line');
   }
   const scripts = splitList(values.scripts ?? 'test,build');
   if (scripts.some((name) => !isValidScriptName(name))) throw new UsageError('--scripts contains an invalid npm script name.');
@@ -293,6 +293,6 @@ function output(options: CliOptions, value: unknown, jsonValue?: unknown, code =
   process.stdout.write(options.json ? `${JSON.stringify(document)}\n` : `${typeof value === 'string' ? value : JSON.stringify(value, null, 2)}\n`);
   return code;
 }
-function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest|a=line]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n  keel-npm verify --file <list.txt|-> [--lang en|es]   (or: keel-npm verify CVE-… GHSA-…)\n\nverify checks a list of CVE/GHSA codes and/or vulnerability titles (one per line) against the current project.\n\n--choice a=line picks the version of the installed major line that leaves the fewest vulnerabilities (a partial fix without a major upgrade).\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
+function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest|a=line|a=1.2.3]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n  keel-npm verify --file <list.txt|-> [--lang en|es]   (or: keel-npm verify CVE-… GHSA-…)\n\nverify checks a list of CVE/GHSA codes and/or vulnerability titles (one per line) against the current project.\n\n--choice a=line picks the version of the installed major line that leaves the fewest vulnerabilities (a partial fix without a major upgrade); --choice a=1.2.3 installs that exact published version even if it is still vulnerable.\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
 
 if (require.main === module) void main().then((code) => { process.exitCode = code; });

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-05
+
+### Added
+
+- Choose any published version to install: type it (Keel checks that it exists on npm, is newer than the installed one and is not flagged as malicious) or click it in the versions table. Keel shows its upgrade type and the vulnerabilities npm audit still counts in it, and installs it even if it only fixes part of them, so you can upgrade without a major jump and handle the rest later. The CLI accepts `--choice name=1.2.3`.
+- "Show all" in the versions table lists every newer version.
+- The compact versions table always includes the versions right after the installed one and the latest of the installed line (marked "Latest 3.x · no major jump"), which were missing before, for example vitest 3.2.7.
+
+### Changed
+
+- The package detail puts the decision right after the verdict, so saving no longer requires scrolling past everything else; the versions table, release notes, usages and advisories scroll inside their own cards.
+- Results rows show a version you chose as "Partial fix" with how many vulnerabilities stay open, instead of the recommended version's labels.
+- The active filter pill uses the button color instead of the theme's focus color.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added

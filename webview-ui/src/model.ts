@@ -16,6 +16,8 @@ export function targetVersion(pkg: PackageReport, scan: ScanPayload): string | u
   if (!r) return undefined;
   if (scan.choices[pkg.name] === 'latest' && r.latest) return r.latest.version;
   if (scan.choices[pkg.name] === 'line' && r.bestInLine) return r.bestInLine.version;
+  const chosen = scan.choices[pkg.name];
+  if (typeof chosen === 'object') return chosen.version;
   return r.recommended?.version;
 }
 
@@ -56,6 +58,20 @@ export function majorOf(v: string): string {
 }
 
 /** Frase corta de la fila: qué corrige la versión y qué cambia. */
+/** Versión que eligió el dev distinta de la mínima segura (sin salto major o a mano), con su salto y lo que deja abierto. */
+export function chosenTarget(pkg: PackageReport, scan: ScanPayload): { version: string; bump: 'patch' | 'minor' | 'major'; left: number } | undefined {
+  const chosen = scan.choices[pkg.name];
+  const r = pkg.resolution;
+  if (chosen === 'line' && r?.bestInLine) return { version: r.bestInLine.version, bump: r.bestInLine.bump, left: r.bestInLine.remainingIds.length };
+  if (typeof chosen !== 'object') return undefined;
+  const row = pkg.versionOptions?.find((o) => o.version === chosen.version);
+  const left = row ? SEVERITIES.reduce((n, s) => n + row.counts[s], 0) : 0;
+  const [a, b] = pkg.installed.split('.').map(Number);
+  const [c, d] = chosen.version.split('.').map(Number);
+  const bump = a !== c || (a === 0 && b !== d) ? 'major' : b !== d ? 'minor' : 'patch';
+  return { version: chosen.version, bump, left };
+}
+
 export function rowSummary(lang: Lang, pkg: PackageReport, scan: ScanPayload): string {
   const t = STRINGS[lang];
   if (pkg.error) return pkg.error;
@@ -63,6 +79,8 @@ export function rowSummary(lang: Lang, pkg: PackageReport, scan: ScanPayload): s
   const r = pkg.resolution!;
   const parts: string[] = [];
   if (keep) parts.push(keep.version === pkg.installed ? t.kept(keep.reason) : t.keptStale(keep.version));
+  const chosen = chosenTarget(pkg, scan);
+  if (chosen && !keep) return t.chosenVersion(chosen.version, chosen.left);
 
   if (r.status === 'quarantine-only' && r.waitingFor) {
     parts.push(t.quarantineOnly(r.waitingFor.version, formatDate(lang, r.waitingFor.waitUntil)));

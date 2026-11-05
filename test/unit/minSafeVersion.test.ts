@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseAudit } from '../../src/core/audit/parseAudit';
 import { resolveMinSafeVersion, type ResolveInput } from '../../src/core/resolver/minSafeVersion';
+import { buildVersionTable } from '../../src/core/resolver/versionTable';
 import { advisory, FIXTURE_NOW, fixtureText, makePackument, packumentFixture } from './helpers';
 
 const audit = parseAudit(fixtureText('audit/sample.json'));
@@ -40,6 +41,15 @@ describe('resolveMinSafeVersion · casos reales', () => {
     const r = resolveMinSafeVersion({ packument, installed: '3.2.6', advisories: [advisory('>=2.1.0 <4.1.11', 'high', 1)], severity: 'high', quarantineDays: 7, now: FIXTURE_NOW });
     expect(r.bestInLine).toBeUndefined();
     expect(r.lineBlocker?.version).toBe('3.2.7');
+  });
+
+  it('la tabla incluye la versión siguiente y la última de la línea instalada (vitest 3.2.7)', () => {
+    const packument = makePackument({ '3.2.5': { ageDays: 300 }, '3.2.6': { ageDays: 200 }, '3.2.7': { ageDays: 120 }, '4.1.9': { ageDays: 100 }, '4.1.10': { ageDays: 90 }, '4.1.11': { ageDays: 80 } });
+    const advisories = [advisory('>=2.1.0 <4.1.11', 'high', 1)];
+    const resolution = resolveMinSafeVersion({ packument, installed: '3.2.6', advisories, severity: 'high', quarantineDays: 7, now: FIXTURE_NOW });
+    const rows = buildVersionTable({ packument, installed: '3.2.6', advisories, resolution, excluded: new Set(), now: FIXTURE_NOW, quarantineDays: 7 });
+    expect(rows.map((r) => r.version)).toContain('3.2.7');
+    expect(rows.find((r) => r.version === '3.2.7')!.roles).toContain('line');
   });
 
   it('sin salto major obligatorio no hay bloqueo de línea', () => {

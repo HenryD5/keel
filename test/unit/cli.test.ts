@@ -29,6 +29,10 @@ describe('CLI arguments', () => {
     expect(parsed.validate).toBe(false);
   });
 
+  it('accepts line and exact version choices', () => {
+    expect(parseCliArgs(['plan', '--choice', 'vitest=3.2.7', '--choice', 'vite=line']).choices).toEqual({ vitest: { version: '3.2.7' }, vite: 'line' });
+  });
+
   it('rejects unsafe choice and script inputs', () => {
     expect(() => parseCliArgs(['plan', '--choice', 'a=next'])).toThrow();
     expect(() => parseCliArgs(['apply', '--scripts', 'test;rm'])).toThrow();

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { AuditError } from './core/audit/parseAudit';
 import { LockfileError } from './core/audit/lockfile';
 import { previewAuditFix } from './core/apply/auditFixPreview';
-import { buildInstallPlan, type InstallPlan } from './core/apply/plan';
+import { buildInstallPlan, type InstallPlan, type VersionChoice } from './core/apply/plan';
 import { buildRemovalPlan } from './core/apply/removal';
 import { runApply, runRevert } from './core/apply/runner';
 import { APPLY_STEPS, type ApplyMethod } from './core/apply/steps';
@@ -48,7 +48,7 @@ export class KeelController {
   private applying = false;
   private lastError: string | undefined;
   private impact: ImpactService | undefined;
-  private readonly choices: Record<string, Exclude<Choice, 'keep'>> = {};
+  private readonly choices: Record<string, VersionChoice> = {};
   private snapshot: { manifest: string; lockfile: string } | undefined;
   private candidateCount = 0;
   private removalPlan: InstallPlan | undefined;
@@ -282,7 +282,7 @@ export class KeelController {
       case 'openExternal':
         return this.openExternal(msg.url);
       case 'saveDecision':
-        return this.saveDecision(msg.name, msg.choice, msg.reason);
+        return this.saveDecision(msg.name, msg.choice, msg.reason, msg.version);
       case 'requestPlan':
         this.removalPlan = undefined;
         return this.sendPlan(msg.selected, msg.exact);
@@ -624,7 +624,7 @@ export class KeelController {
     if (parsed.scheme === 'https' && EXTERNAL_HOSTS.has(parsed.authority)) await vscode.env.openExternal(parsed);
   }
 
-  private async saveDecision(name: string, choice: Choice, reason: string | undefined): Promise<void> {
+  private async saveDecision(name: string, choice: Choice, reason: string | undefined, version?: string): Promise<void> {
     const pkg = this.findPackage(name);
     const folder = this.folder;
     if (!pkg || !folder || !this.payload) return;
@@ -636,7 +636,13 @@ export class KeelController {
         keep = { version: pkg.installed, reason: reason ?? '', date: new Date().toISOString() };
         delete this.choices[name];
       } else {
-        this.choices[name] = choice;
+        if (choice === 'version') {
+          const option = pkg.versionOptions?.find((o) => o.version === version);
+          if (!version || !option || option.malicious) throw new Error(vscode.l10n.t('Version {0} is not available for {1}.', version ?? '?', name));
+          this.choices[name] = { version };
+        } else {
+          this.choices[name] = choice;
+        }
       }
       if (keep || wasKept) {
         const next = withKeep(file, name, keep);
@@ -644,7 +650,7 @@ export class KeelController {
         this.log.info(keep ? `Saved "keep ${name}@${pkg.installed}" in ${KEEL_FILE}` : `Removed "keep ${name}" from ${KEEL_FILE}`);
         this.payload.keep = keepDecisions(next);
       }
-      this.post({ type: 'decisionSaved', name, choice, keep: this.payload.keep[name] });
+      this.post({ type: 'decisionSaved', name, choice, keep: this.payload.keep[name], ...(choice === 'version' ? { version } : {}) });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.log.info(`Could not save the decision for ${name}: ${message}`);

@@ -78,6 +78,18 @@ describe('plan de instalación', () => {
     expect(plan.changes[0]!.bump).not.toBe('major');
   });
 
+  it('instala una versión elegida a mano aunque deje vulnerabilidades, y rechaza las que no existen', async () => {
+    const result = await scan(deps());
+    const vite = result.packages.find((pkg) => pkg.name === 'vite')!;
+    const option = vite.versionOptions!.find((o) => o.version.startsWith('5.4.') && o.counts.high + o.counts.moderate > 0)!;
+    const manifestText = fixtureText('lockfile/sample-package.json');
+    const plan = buildInstallPlan({ result, manifestText, selected: ['vite'], choices: { vite: { version: option.version } }, exact: true });
+    expect(plan.changes[0]).toMatchObject({ name: 'vite', to: option.version, bump: 'patch' });
+    const missing = buildInstallPlan({ result, manifestText, selected: ['vite'], choices: { vite: { version: '5.4.999' } }, exact: true });
+    expect(missing.changes).toEqual([]);
+    expect(missing.skipped).toEqual([{ name: 'vite', reason: 'unknown-version' }]);
+  });
+
   it('omite paquetes sin recomendación y no cambia una selección vacía', async () => {
     const result = await scan(deps());
     result.packages[0] = { ...result.packages[0]!, resolution: undefined, error: 'timeout' };

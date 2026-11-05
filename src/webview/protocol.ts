@@ -9,12 +9,13 @@ import type { ReferenceSource } from '../core/reference/types';
 import type { ScanResult } from '../core/scan';
 import type { RegistryFinding } from '../core/audit/registries';
 import type { VerifyResult } from '../core/verify/verify';
+import type { VersionChoice } from '../core/apply/plan';
 
 export type Lang = 'es' | 'en';
 
 /** Qué versión eligió el dev en el detalle. `keep` se guarda en `.keel.json`; el resto vive en la sesión. */
-/** `line`: la mejor versión sin salto major, aunque solo corrija una parte. */
-export type Choice = 'min' | 'latest' | 'line' | 'keep';
+/** `line`: la mejor versión sin salto major, aunque solo corrija una parte. `version`: una versión concreta que eligió el dev. */
+export type Choice = 'min' | 'latest' | 'line' | 'version' | 'keep';
 
 export interface ScanPayload {
   result: ScanResult;
@@ -24,7 +25,7 @@ export interface ScanPayload {
   /** Decisiones de `.keel.json`. */
   keep: Record<string, KeepDecision>;
   /** Elecciones de esta sesión (mínima o última). */
-  choices: Record<string, Exclude<Choice, 'keep'>>;
+  choices: Record<string, VersionChoice>;
   /** Aviso si `.keel.json` no se pudo leer. */
   keelFileError?: string;
   registryFindings: RegistryFinding[];
@@ -85,7 +86,7 @@ export type HostMessage =
   | { type: 'scan'; scan: ScanPayload }
   | { type: 'scanError'; message: string }
   | { type: 'impact'; impact: ImpactPayload }
-  | { type: 'decisionSaved'; name: string; choice: Choice; keep?: KeepDecision }
+  | { type: 'decisionSaved'; name: string; choice: Choice; keep?: KeepDecision; version?: string }
   | { type: 'decisionError'; name: string; message: string }
   | { type: 'plan'; plan: PlanPayload; preview: AuditFixPreview; steps: Array<{ label: string; detail: string }> }
   | { type: 'applyStarted'; steps: Array<{ label: string; detail: string }> }
@@ -108,7 +109,7 @@ export type WebviewMessage =
   | { type: 'requestImpact'; name: string; to: string }
   | { type: 'openFile'; path: string; line: number }
   | { type: 'openExternal'; url: string }
-  | { type: 'saveDecision'; name: string; choice: Choice; reason?: string }
+  | { type: 'saveDecision'; name: string; choice: Choice; reason?: string; version?: string }
   | { type: 'requestPlan'; selected: string[]; exact: boolean }
   | { type: 'apply'; method: ApplyMethod; selected: string[]; exact: boolean; validate: boolean }
   | { type: 'revert' }
@@ -124,8 +125,9 @@ export type WebviewMessage =
 /** Tope del texto pegado en la pantalla de verificación. */
 export const MAX_LIST_LENGTH = 200_000;
 
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const LANGS: readonly string[] = ['es', 'en'];
-const CHOICES: readonly string[] = ['min', 'latest', 'line', 'keep'];
+const CHOICES: readonly string[] = ['min', 'latest', 'line', 'version', 'keep'];
 const METHODS: readonly string[] = ['audit', 'exact'];
 
 /** El webview es contenido no confiable para la extensión: cada mensaje se valida antes de usarse. */
@@ -166,7 +168,8 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
     case 'saveDecision':
       if (!str('name', 214) || !CHOICES.includes(m.choice as string)) return undefined;
       if (m.reason !== undefined && !str('reason', 2000)) return undefined;
-      return { type: 'saveDecision', name: m.name as string, choice: m.choice as Choice, reason: m.reason as string | undefined };
+      if (m.choice === 'version' && !(str('version', 64) && EXACT_VERSION.test(m.version as string))) return undefined;
+      return { type: 'saveDecision', name: m.name as string, choice: m.choice as Choice, reason: m.reason as string | undefined, ...(m.choice === 'version' ? { version: m.version as string } : {}) };
     case 'requestPlan': {
       const names = selected();
       return names && typeof m.exact === 'boolean' ? { type: 'requestPlan', selected: names, exact: m.exact } : undefined;

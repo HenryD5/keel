@@ -1,3 +1,4 @@
+import { bumpType } from '../resolver/versions';
 import { applyEdits, modify, parse, type FormattingOptions } from 'jsonc-parser';
 import type { ScanResult } from '../scan';
 import { assertPackageName, assertVersion } from '../validate';
@@ -31,12 +32,17 @@ export interface InstallPlan {
   skipped: Array<{ name: string; reason: string }>;
 }
 
+/**
+ * Versión elegida para un paquete: la mínima segura, la última, la mejor sin salto major (`line`,
+ * corrección parcial) o una versión concreta que eligió el dev, aunque deje vulnerabilidades.
+ */
+export type VersionChoice = 'min' | 'latest' | 'line' | { version: string };
+
 export interface BuildInstallPlanInput {
   result: ScanResult;
   manifestText: string;
   selected: string[];
-  /** `line`: la mejor versión sin salto major (corrección parcial). */
-  choices: Record<string, 'min' | 'latest' | 'line'>;
+  choices: Record<string, VersionChoice>;
   exact: boolean;
 }
 
@@ -69,8 +75,17 @@ export function buildInstallPlan(input: BuildInstallPlanInput): InstallPlan {
     const latest = resolution?.latest;
     const useLatest =
       input.choices[name] === 'latest' && latest !== undefined && (latest.reason === 'not-needed' || latest.reason === 'major-avoided');
-    const useLine = input.choices[name] === 'line' && resolution?.bestInLine !== undefined;
-    const target = useLine ? resolution!.bestInLine : useLatest ? latest : resolution?.recommended;
+    const chosen = input.choices[name];
+    if (typeof chosen === 'object') {
+      const option = pkg.versionOptions?.find((o) => o.version === chosen.version);
+      if (!option || option.malicious) {
+        skipped.push({ name, reason: option ? 'malicious' : 'unknown-version' });
+        continue;
+      }
+    }
+    const useLine = chosen === 'line' && resolution?.bestInLine !== undefined;
+    const custom = typeof chosen === 'object' ? { version: chosen.version, bump: bumpType(pkg.installed, chosen.version) } : undefined;
+    const target = custom ?? (useLine ? resolution!.bestInLine : useLatest ? latest : resolution?.recommended);
     if (!target) {
       skipped.push({ name, reason: pkg.error ? 'error' : (resolution?.status ?? 'no-recommendation') });
       continue;
