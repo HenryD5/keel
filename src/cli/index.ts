@@ -12,6 +12,7 @@ import { isValidScriptName } from '../core/apply/validation';
 import { allowedHosts, findDisallowedRegistries } from '../core/audit/registries';
 import { keepDecisions, parseKeelFile } from '../core/decisions';
 import { findProjectUsages } from '../core/impact/walker';
+import { findPeerConflicts } from '../core/apply/peers';
 import { OsvReference, fetchOsvVuln, queryOsv } from '../core/reference/osv';
 import { parseLockfile } from '../core/audit/lockfile';
 import { parseAudit } from '../core/audit/parseAudit';
@@ -45,6 +46,8 @@ export interface CliOptions {
   format: 'markdown' | 'json';
   lang: 'en' | 'es';
   file?: string;
+  /** Paquetes hermanos que se mueven junto al plan (`--with name@1.2.3`). */
+  companions: Array<{ name: string; version: string }>;
   positionals: string[];
 }
 
@@ -57,7 +60,7 @@ export function parseCliArgs(argv: readonly string[]): CliOptions {
     options: {
       cwd: { type: 'string' }, json: { type: 'boolean' }, 'quarantine-days': { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' },
       select: { type: 'string' }, 'keep-range': { type: 'boolean' }, choice: { type: 'string', multiple: true }, plan: { type: 'string' }, remove: { type: 'string' },
-      scripts: { type: 'string' }, validate: { type: 'boolean', default: true }, format: { type: 'string' }, lang: { type: 'string' }, file: { type: 'string' },
+      scripts: { type: 'string' }, validate: { type: 'boolean', default: true }, format: { type: 'string' }, lang: { type: 'string' }, file: { type: 'string' }, with: { type: 'string', multiple: true },
     },
   });
   const days = Number(values['quarantine-days'] ?? 7);
@@ -72,11 +75,16 @@ export function parseCliArgs(argv: readonly string[]): CliOptions {
   if (scripts.some((name) => !isValidScriptName(name))) throw new UsageError('--scripts contains an invalid npm script name.');
   if (values.format !== undefined && values.format !== 'markdown' && values.format !== 'json') throw new UsageError('--format must be markdown or json.');
   if (values.lang !== undefined && values.lang !== 'en' && values.lang !== 'es') throw new UsageError('--lang must be en or es.');
+  const companions = (values.with ?? []).map((raw) => {
+    const match = raw.match(/^(@?[^@\s]+)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/);
+    if (!match) throw new UsageError('--with must use name@<exact version>.');
+    return { name: match[1]!, version: match[2]! };
+  });
   const cwd = resolve(values.cwd ?? process.cwd());
   return {
     command: positionals[0], cwd, json: values.json ?? false, quarantineDays: days, help: values.help ?? false, version: values.version ?? false,
     select: splitList(values.select ?? ''), keepRange: values['keep-range'] ?? false, choices, plan: values.plan, remove: values.remove, scripts, validate: values.validate !== false,
-    format: (values.format as 'markdown' | 'json' | undefined) ?? 'markdown', lang: (values.lang as 'en' | 'es' | undefined) ?? 'en', file: values.file, positionals: positionals.slice(1),
+    format: (values.format as 'markdown' | 'json' | undefined) ?? 'markdown', lang: (values.lang as 'en' | 'es' | undefined) ?? 'en', file: values.file, companions, positionals: positionals.slice(1),
   };
 }
 
@@ -135,6 +143,12 @@ async function readStdin(): Promise<string> {
   return text;
 }
 
+async function fetchJsonCli(url: string): Promise<unknown> {
+  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30_000), headers: { Accept: 'application/json', 'User-Agent': 'keel-npm' } });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  return response.json();
+}
+
 async function runScan(options: CliOptions): Promise<{ result: ScanResult; keep: ReturnType<typeof keepDecisions>; registryFindings: ReturnType<typeof findDisallowedRegistries> }> {
   const read = (name: string) => readFile(join(options.cwd, name), 'utf8');
   const fetchJson = async (url: string, init?: RequestInit) => {
@@ -170,7 +184,12 @@ async function computePlan(options: CliOptions): Promise<{ plan: InstallPlan; pl
   const manifest = await readFile(join(options.cwd, 'package.json'), 'utf8');
   const lockfile = await readFile(join(options.cwd, 'package-lock.json'), 'utf8');
   const scanned = await runScan(options);
-  const plan = options.remove ? buildRemovalPlan(manifest, options.remove) : buildInstallPlan({ result: scanned.result, manifestText: manifest, selected: options.select, choices: options.choices, exact: !options.keepRange });
+  const lock = parseLockfile(lockfile);
+  const companions = options.companions.flatMap((c) => {
+    const from = lock.packages.get(`node_modules/${c.name}`)?.version;
+    return from ? [{ name: c.name, from, to: c.version }] : [];
+  });
+  const plan = options.remove ? buildRemovalPlan(manifest, options.remove) : buildInstallPlan({ result: scanned.result, manifestText: manifest, selected: options.select, choices: options.choices, exact: !options.keepRange, companions });
   const method = options.remove ? 'remove' : 'exact';
   return { plan, planId: createPlanId({ method, selection: options.remove ? [options.remove] : options.select, choices: options.choices, plan, manifestText: manifest, lockfileText: lockfile }), result: scanned.result, registryFindings: scanned.registryFindings, manifest };
 }
@@ -178,7 +197,11 @@ async function computePlan(options: CliOptions): Promise<{ plan: InstallPlan; pl
 async function planOutput(options: CliOptions): Promise<object> {
   const data = await computePlan(options);
   const usages = Object.fromEntries(await Promise.all(options.select.map(async (name) => [name, await findProjectUsages(options.cwd, name)])));
-  return { changes: data.plan.changes, diff: data.plan.diff, skipped: data.plan.skipped, usages, planId: data.planId };
+  const registry = new RegistryClient((url) => fetchJsonCli(url));
+  const lock = parseLockfile(await readFile(join(options.cwd, 'package-lock.json'), 'utf8'));
+  const peerConflicts = await findPeerConflicts({ planned: data.plan.changes.map((c) => ({ name: c.name, to: c.to })), lock, getPackument: (name) => registry.getPackument(name) }).catch(() => []);
+  const suggestedWith = [...new Set(peerConflicts.flatMap((c) => (c.fix ? [`${c.fix.name}@${c.fix.to}`] : [])))];
+  return { changes: data.plan.changes, diff: data.plan.diff, skipped: data.plan.skipped, peerConflicts, suggestedWith, usages, planId: data.planId };
 }
 
 async function removalOutput(options: CliOptions): Promise<object> {
@@ -293,6 +316,6 @@ function output(options: CliOptions, value: unknown, jsonValue?: unknown, code =
   process.stdout.write(options.json ? `${JSON.stringify(document)}\n` : `${typeof value === 'string' ? value : JSON.stringify(value, null, 2)}\n`);
   return code;
 }
-function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest|a=line|a=1.2.3]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n  keel-npm verify --file <list.txt|-> [--lang en|es]   (or: keel-npm verify CVE-… GHSA-…)\n\nverify checks a list of CVE/GHSA codes and/or vulnerability titles (one per line) against the current project.\n\n--choice a=line picks the version of the installed major line that leaves the fewest vulnerabilities (a partial fix without a major upgrade); --choice a=1.2.3 installs that exact published version even if it is still vulnerable.\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
+function helpText(): string { return `keel-npm — safely plan and apply npm vulnerability fixes\n\nUsage:\n  keel-npm scan [--json]\n  keel-npm plan --select a,b [--keep-range] [--choice a=latest|a=line|a=1.2.3] [--with b@1.2.3]\n  keel-npm remove <name>\n  keel-npm apply --plan <id> --select a,b [--keep-range] [--choice ...] [--with b@1.2.3] [--remove <name>] [--scripts test,build] [--no-validate]\n  keel-npm revert\n  keel-npm report [--format markdown|json] [--lang en|es]\n  keel-npm verify --file <list.txt|-> [--lang en|es]   (or: keel-npm verify CVE-… GHSA-…)\n\nplan reports peerConflicts that would make npm install fail (ERESOLVE) and suggestedWith: pass them as --with to plan and apply so those packages move together.\n\nverify checks a list of CVE/GHSA codes and/or vulnerability titles (one per line) against the current project.\n\n--choice a=line picks the version of the installed major line that leaves the fewest vulnerabilities (a partial fix without a major upgrade); --choice a=1.2.3 installs that exact published version even if it is still vulnerable.\n\nVersions are pinned by default. --keep-range preserves a compatible range, so npm may install a newer version in it.\n\nGlobal options:\n  --cwd <dir>  --json  --quarantine-days <n>  --help  --version\n\nExit codes: 0 success; 1 operation failed; 2 refused or invalid usage; 3 environment problem.\nKeel never uses --force and never applies a plan without its matching plan ID.`; }
 
 if (require.main === module) void main().then((code) => { process.exitCode = code; });

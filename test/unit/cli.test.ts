@@ -33,6 +33,11 @@ describe('CLI arguments', () => {
     expect(parseCliArgs(['plan', '--choice', 'vitest=3.2.7', '--choice', 'vite=line']).choices).toEqual({ vitest: { version: '3.2.7' }, vite: 'line' });
   });
 
+  it('parses --with companions and rejects ranges', () => {
+    expect(parseCliArgs(['plan', '--with', '@vitest/ui@3.2.7', '--with', 'zod@4.6.6']).companions).toEqual([{ name: '@vitest/ui', version: '3.2.7' }, { name: 'zod', version: '4.6.6' }]);
+    expect(() => parseCliArgs(['plan', '--with', '@vitest/ui@^3.2.7'])).toThrow();
+  });
+
   it('rejects unsafe choice and script inputs', () => {
     expect(() => parseCliArgs(['plan', '--choice', 'a=next'])).toThrow();
     expect(() => parseCliArgs(['apply', '--scripts', 'test;rm'])).toThrow();

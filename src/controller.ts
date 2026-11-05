@@ -4,6 +4,7 @@ import { AuditError } from './core/audit/parseAudit';
 import { LockfileError } from './core/audit/lockfile';
 import { previewAuditFix } from './core/apply/auditFixPreview';
 import { buildInstallPlan, type InstallPlan, type VersionChoice } from './core/apply/plan';
+import { findPeerConflicts } from './core/apply/peers';
 import { buildRemovalPlan } from './core/apply/removal';
 import { runApply, runRevert } from './core/apply/runner';
 import { APPLY_STEPS, type ApplyMethod } from './core/apply/steps';
@@ -28,7 +29,7 @@ import { run, runChecked } from './infra/exec';
 import { createFetchJson, HttpError } from './infra/http';
 import type { Logger } from './infra/log';
 import { KeelPanel } from './webview/panel';
-import { MAX_LIST_LENGTH, type Choice, type HostMessage, type Lang, type ScanPayload, type WebviewMessage } from './webview/protocol';
+import { MAX_LIST_LENGTH, type Companion, type Choice, type HostMessage, type Lang, type ScanPayload, type WebviewMessage } from './webview/protocol';
 
 export const SNYK_TOKEN_SECRET = 'keel.snykToken';
 
@@ -59,6 +60,7 @@ export class KeelController {
   private lastValidation: Array<{ script: string; status: 'passed' | 'skipped' | 'failed'; detail?: string }> = [];
   private readonly fetchJson;
   private pendingScreen: 'verify' | undefined;
+  private registry: RegistryClient | undefined;
   private verifying = false;
   private lastVerify: VerifyResult | undefined;
 
@@ -185,6 +187,7 @@ export class KeelController {
     const cwd = folder.fsPath;
     const quarantineDays = vscode.workspace.getConfiguration('keel').get<number>('quarantineDays', 7);
     const registry = new RegistryClient((url) => this.fetchJson(url));
+    this.registry = registry;
     const readText = async (name: string) => new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, name)));
     const reference = await this.createReference(registry);
 
@@ -285,11 +288,11 @@ export class KeelController {
         return this.saveDecision(msg.name, msg.choice, msg.reason, msg.version);
       case 'requestPlan':
         this.removalPlan = undefined;
-        return this.sendPlan(msg.selected, msg.exact);
+        return this.sendPlan(msg.selected, msg.exact, msg.companions);
       case 'requestRemovalPlan':
         return this.sendRemovalPlan(msg.name);
       case 'apply':
-        return this.apply(msg.method, msg.selected, msg.exact, msg.validate);
+        return this.apply(msg.method, msg.selected, msg.exact, msg.validate, msg.companions);
       case 'revert':
         return this.revert();
       case 'verifyList':
@@ -314,14 +317,38 @@ export class KeelController {
     return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
   }
 
-  private async calculatePlan(selected: string[], exact: boolean): Promise<InstallPlan> {
+  private async calculatePlan(selected: string[], exact: boolean, companions: Companion[] = []): Promise<InstallPlan> {
     if (!this.payload) throw new Error(vscode.l10n.t('No scan results are available.'));
-    return buildInstallPlan({ result: this.payload.result, manifestText: await this.manifestText(), selected, choices: this.choices, exact });
+    const lock = await this.lockfile();
+    // La versión de origen sale del lockfile, nunca del webview; y solo paquetes ya instalados.
+    const extra = companions.flatMap((c) => {
+      const from = lock.packages.get(`node_modules/${c.name}`)?.version;
+      return from ? [{ name: c.name, from, to: c.version }] : [];
+    });
+    return buildInstallPlan({ result: this.payload.result, manifestText: await this.manifestText(), selected, choices: this.choices, exact, companions: extra });
   }
 
-  private async sendPlan(selected: string[], exact: boolean): Promise<void> {
+  private async lockfile() {
+    const folder = this.folder;
+    if (!folder) throw new Error(vscode.l10n.t('No project folder is available.'));
+    return parseLockfile(new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, 'package-lock.json'))));
+  }
+
+  /** Choques de peerDependencies del plan, con la versión hermana que los resolvería. Un fallo de red no bloquea. */
+  private async peerConflicts(plan: InstallPlan) {
     try {
-      const plan = await this.calculatePlan(selected, exact);
+      const registry = (this.registry ??= new RegistryClient((url) => this.fetchJson(url)));
+      return await findPeerConflicts({ planned: plan.changes.map((c) => ({ name: c.name, to: c.to })), lock: await this.lockfile(), getPackument: (name) => registry.getPackument(name) });
+    } catch (err) {
+      this.log.info(`Could not check peer dependencies: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
+  }
+
+  private async sendPlan(selected: string[], exact: boolean, companions: Companion[] = []): Promise<void> {
+    try {
+      const plan = await this.calculatePlan(selected, exact, companions);
+      const peerConflicts = exact ? await this.peerConflicts(plan) : [];
       const { changes, diff, skipped } = plan;
       const configured = vscode.workspace.getConfiguration('keel').get<unknown[]>('validationScripts', ['test', 'build']);
       const validation = selectValidationScripts(configured, await this.manifestText());
@@ -330,7 +357,7 @@ export class KeelController {
       base.splice(method === 'exact' ? 2 : 1, 0, { label: vscode.l10n.t('Check lockfile registries'), detail: vscode.l10n.t('Checks newly introduced download hosts.') });
       this.post({
         type: 'plan',
-        plan: { changes, diff, skipped },
+        plan: { changes, diff, skipped, peerConflicts },
         preview: previewAuditFix(this.payload!.result, selected),
         steps: [...base, ...validation.map((script) => ({ label: `npm run ${script.name}`, detail: script.exists ? vscode.l10n.t('Runs the project script with CI=true.') : vscode.l10n.t('Skipped: script is not present in package.json.') }))],
       });
@@ -356,7 +383,7 @@ export class KeelController {
     }
   }
 
-  private async apply(method: ApplyMethod, selected: string[], exact: boolean, validate: boolean): Promise<void> {
+  private async apply(method: ApplyMethod, selected: string[], exact: boolean, validate: boolean, companions: Companion[] = []): Promise<void> {
     this.lastApplySucceeded = false;
     if (this.scanning || this.applying) {
       this.post({ type: 'applyDone', ok: false, message: vscode.l10n.t('A scan or apply operation is already running.') });
@@ -375,7 +402,7 @@ export class KeelController {
     this.lastVersionWarnings = [];
     try {
       // El plan nunca viene del webview: se vuelve a calcular sobre el package.json actual.
-      const plan = this.removalPlan ?? await this.calculatePlan(selected, exact);
+      const plan = this.removalPlan ?? await this.calculatePlan(selected, exact, companions);
       this.lastAppliedPlan = plan;
       if (method === 'exact' && plan.changes.length === 0) {
         this.post({ type: 'applyDone', ok: true });

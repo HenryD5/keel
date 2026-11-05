@@ -273,3 +273,4 @@ tr.pickable:focus-visible { outline: 1px dashed var(--fg); outline-offset: -1px;
 .text-input { min-height: 34px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--vscode-input-border, var(--control-border)); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-size: 13px; max-width: 280px; }
 .version-check { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); }
 .b-partial { background: var(--med-bg); color: var(--med); }
+.exact-option.bare { border-top: 0; padding: 4px 0 0; }

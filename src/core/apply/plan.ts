@@ -15,6 +15,8 @@ export interface InstallChange {
   section?: DependencySection;
   oldSpec?: string;
   newSpec: string;
+  /** Se añadió para cumplir peerDependencies de otro cambio (p. ej. @vitest/ui junto a vitest). */
+  companion?: boolean;
 }
 
 export interface DiffLine {
@@ -44,6 +46,8 @@ export interface BuildInstallPlanInput {
   selected: string[];
   choices: Record<string, VersionChoice>;
   exact: boolean;
+  /** Paquetes que no tienen vulnerabilidades pero deben moverse con los elegidos por sus peerDependencies. */
+  companions?: ReadonlyArray<{ name: string; from: string; to: string }>;
 }
 
 interface Manifest {
@@ -108,6 +112,28 @@ export function buildInstallPlan(input: BuildInstallPlanInput): InstallPlan {
       if (!manifest.overrides) manifest.overrides = {};
       manifest.overrides[name] = to;
       changes.push({ name, from, to, bump: target.bump, kind: 'override', oldSpec, newSpec: to });
+    }
+  }
+
+  for (const companion of input.companions ?? []) {
+    const name = assertPackageName(companion.name);
+    if (changes.some((c) => c.name === name)) continue;
+    const to = assertVersion(companion.to);
+    const from = assertVersion(companion.from);
+    const bump = bumpType(from, to);
+    const section = (['dependencies', 'devDependencies', 'optionalDependencies'] as const).find((s) => manifest[s]?.[name] !== undefined);
+    if (section) {
+      const oldSpec = asString(manifest[section]![name]);
+      const newSpec = input.exact ? to : rangeFor(oldSpec, to);
+      text = edit(text, [section, name], newSpec, formattingOptions);
+      manifest[section]![name] = newSpec;
+      changes.push({ name, from, to, bump, kind: 'direct', section, oldSpec, newSpec, companion: true });
+    } else {
+      const oldSpec = asString(manifest.overrides?.[name]);
+      text = edit(text, ['overrides', name], to, formattingOptions);
+      if (!manifest.overrides) manifest.overrides = {};
+      manifest.overrides[name] = to;
+      changes.push({ name, from, to, bump, kind: 'override', oldSpec, newSpec: to, companion: true });
     }
   }
 

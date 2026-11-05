@@ -35,10 +35,10 @@ describe('parseWebviewMessage', () => {
 
   it('valida los mensajes de plan y aplicación', () => {
     expect(parseWebviewMessage({ type: 'requestPlan', selected: ['axios'], exact: false })).toEqual({
-      type: 'requestPlan', selected: ['axios'], exact: false,
+      type: 'requestPlan', selected: ['axios'], exact: false, companions: [],
     });
     expect(parseWebviewMessage({ type: 'apply', method: 'exact', selected: ['axios'], exact: true, validate: true })).toEqual({
-      type: 'apply', method: 'exact', selected: ['axios'], exact: true, validate: true,
+      type: 'apply', method: 'exact', selected: ['axios'], exact: true, validate: true, companions: [],
     });
     expect(parseWebviewMessage({ type: 'apply', method: 'force', selected: [], exact: false })).toBeUndefined();
     expect(parseWebviewMessage({ type: 'requestPlan', selected: ['axios'], exact: 'false' })).toBeUndefined();

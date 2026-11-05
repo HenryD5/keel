@@ -28,13 +28,24 @@ const emit = defineEmits<{
   keep: [];
   copyReport: [];
   createPr: [];
+  includeCompanions: [companions: Array<{ name: string; version: string }>];
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
 const method = ref<ApplyMethod>('exact');
 const validate = ref(true);
+/** Choques de peerDependencies: npm install fallaría con ERESOLVE. */
+const conflicts = computed(() => (method.value === 'exact' ? props.plan?.peerConflicts ?? [] : []));
+const fixes = computed(() => {
+  const seen = new Map<string, { name: string; from: string; to: string }>();
+  for (const c of conflicts.value) if (c.fix) seen.set(c.fix.name, c.fix);
+  return [...seen.values()];
+});
+const unfixable = computed(() => conflicts.value.filter((c) => !c.fix));
+/** Con conflictos se bloquea aplicar, salvo que el dev decida intentarlo igual. */
+const tryAnyway = ref(false);
 const disabled = computed(() =>
-  props.applying || !props.plan || !props.preview || (method.value === 'exact' ? props.plan.changes.length === 0 && !props.plan.removed?.length : props.preview.summary.fixable === 0),
+  props.applying || !props.plan || !props.preview || (conflicts.value.length > 0 && !tryAnyway.value) || (method.value === 'exact' ? props.plan.changes.length === 0 && !props.plan.removed?.length : props.preview.summary.fixable === 0),
 );
 const primaryText = computed(() =>
   method.value === 'audit' ? t.value.reviewRunAuditFix : props.plan?.removed?.length ? t.value.removeDependency : t.value.reviewInstall(props.plan?.changes.length ?? 0),
@@ -81,6 +92,28 @@ function icon(status: ApplyStatus | undefined): string {
       </label>
     </fieldset>
 
+    <section v-if="conflicts.length" class="notice red" role="alert">
+      <h2>{{ t.peerTitle }}</h2>
+      <p>{{ t.peerIntro }}</p>
+      <ul class="facts">
+        <li v-for="c in conflicts" :key="c.requirer + c.peer">
+          <span class="codicon codicon-error error-icon" aria-hidden="true"></span>
+          <span>{{ t.peerLine(c.requirer, c.requirerVersion, c.peer, c.range, c.peerVersion) }}</span>
+        </li>
+      </ul>
+      <template v-if="fixes.length">
+        <p>{{ t.peerFixIntro }}</p>
+        <ul class="facts">
+          <li v-for="f in fixes" :key="f.name"><span class="mono">{{ f.name }} {{ f.from }} → {{ f.to }}</span></li>
+        </ul>
+        <div class="inline">
+          <button type="button" class="btn primary" :disabled="applying" @click="emit('includeCompanions', fixes.map((f) => ({ name: f.name, version: f.to })))">{{ t.peerInclude(fixes.length) }}</button>
+        </div>
+      </template>
+      <p v-if="unfixable.length" class="sub">{{ t.peerUnfixable }}</p>
+      <label class="exact-option bare"><input v-model="tryAnyway" type="checkbox" :disabled="applying" />{{ t.peerTryAnyway }}</label>
+    </section>
+
     <template v-if="method === 'audit' && !plan?.removed?.length">
       <section class="card">
         <div class="card-head"><h2>{{ t.reviewAuditWhat }}</h2></div>
@@ -106,7 +139,7 @@ function icon(status: ApplyStatus | undefined): string {
           <ul class="list review-list">
             <li v-for="item in plan.removed" :key="item.name"><span class="mono">{{ item.name }}</span><span class="warn">{{ t.removeDependency }}</span></li>
             <li v-for="change in plan.changes" :key="change.name">
-              <span class="mono">{{ change.name }} {{ change.from }} → {{ change.to }}<span v-if="change.kind === 'override'" class="ref"> · override</span></span>
+              <span class="mono">{{ change.name }} {{ change.from }} → {{ change.to }}<span v-if="change.kind === 'override'" class="ref"> · override</span><span v-if="change.companion" class="ref"> · {{ t.peerCompanion }}</span></span>
               <span class="badge" :class="`b-${change.bump}`">{{ change.bump === 'major' ? t.reviewMajorNoForce : t.reviewBump[change.bump] }}</span>
             </li>
           </ul>

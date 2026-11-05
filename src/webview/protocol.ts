@@ -10,6 +10,7 @@ import type { ScanResult } from '../core/scan';
 import type { RegistryFinding } from '../core/audit/registries';
 import type { VerifyResult } from '../core/verify/verify';
 import type { VersionChoice } from '../core/apply/plan';
+import type { PeerConflict } from '../core/apply/peers';
 
 export type Lang = 'es' | 'en';
 
@@ -75,6 +76,14 @@ export interface PlanPayload {
   removed?: InstallPlan['removed'];
   diff: DiffLine[];
   skipped: InstallPlan['skipped'];
+  /** Choques de peerDependencies que harían fallar `npm install` (ERESOLVE). */
+  peerConflicts?: PeerConflict[];
+}
+
+/** Paquete que el dev aceptó mover junto a los elegidos para cumplir peerDependencies. */
+export interface Companion {
+  name: string;
+  version: string;
 }
 
 export type ApplyStatus = 'running' | 'done' | 'warning' | 'failed' | 'skipped';
@@ -110,8 +119,8 @@ export type WebviewMessage =
   | { type: 'openFile'; path: string; line: number }
   | { type: 'openExternal'; url: string }
   | { type: 'saveDecision'; name: string; choice: Choice; reason?: string; version?: string }
-  | { type: 'requestPlan'; selected: string[]; exact: boolean }
-  | { type: 'apply'; method: ApplyMethod; selected: string[]; exact: boolean; validate: boolean }
+  | { type: 'requestPlan'; selected: string[]; exact: boolean; companions?: Companion[] }
+  | { type: 'apply'; method: ApplyMethod; selected: string[]; exact: boolean; validate: boolean; companions?: Companion[] }
   | { type: 'revert' }
   | { type: 'keepChanges' }
   | { type: 'selectProject' }
@@ -139,6 +148,17 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
     Array.isArray(m.selected) && m.selected.every((s) => typeof s === 'string' && s.length <= 214)
       ? (m.selected as string[])
       : undefined;
+  const companions = (): Companion[] | undefined => {
+    if (m.companions === undefined) return [];
+    if (!Array.isArray(m.companions) || m.companions.length > 50) return undefined;
+    const out: Companion[] = [];
+    for (const c of m.companions as unknown[]) {
+      const item = c as Record<string, unknown> | null;
+      if (!item || typeof item.name !== 'string' || item.name.length > 214 || typeof item.version !== 'string' || !EXACT_VERSION.test(item.version)) return undefined;
+      out.push({ name: item.name, version: item.version });
+    }
+    return out;
+  };
   switch (m.type) {
     case 'ready':
     case 'rescan':
@@ -172,12 +192,14 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
       return { type: 'saveDecision', name: m.name as string, choice: m.choice as Choice, reason: m.reason as string | undefined, ...(m.choice === 'version' ? { version: m.version as string } : {}) };
     case 'requestPlan': {
       const names = selected();
-      return names && typeof m.exact === 'boolean' ? { type: 'requestPlan', selected: names, exact: m.exact } : undefined;
+      const extra = companions();
+      return names && extra && typeof m.exact === 'boolean' ? { type: 'requestPlan', selected: names, exact: m.exact, companions: extra } : undefined;
     }
     case 'apply': {
       const names = selected();
-      return names && typeof m.exact === 'boolean' && typeof m.validate === 'boolean' && METHODS.includes(m.method as string)
-        ? { type: 'apply', method: m.method as ApplyMethod, selected: names, exact: m.exact, validate: m.validate }
+      const extra = companions();
+      return names && extra && typeof m.exact === 'boolean' && typeof m.validate === 'boolean' && METHODS.includes(m.method as string)
+        ? { type: 'apply', method: m.method as ApplyMethod, selected: names, exact: m.exact, validate: m.validate, companions: extra }
         : undefined;
     }
     default:

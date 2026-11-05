@@ -36,6 +36,8 @@ const outputTail = ref<string>();
 const canRevert = ref(false);
 const reportAvailable = ref(false);
 const canCreatePr = ref(false);
+/** Paquetes que el dev aceptó mover con los elegidos por peerDependencies (se reinicia al abrir la revisión). */
+const companions = ref<Array<{ name: string; version: string }>>([]);
 const verifyText = ref(saved.verifyText ?? '');
 const verifying = ref(false);
 const verifyResult = ref<VerifyResult>();
@@ -171,21 +173,30 @@ function onMessage(event: MessageEvent<HostMessage>): void {
   }
 }
 
+function includeCompanions(extra: Array<{ name: string; version: string }>): void {
+  const byName = new Map(companions.value.map((c) => [c.name, c]));
+  for (const c of extra) byName.set(c.name, c);
+  companions.value = [...byName.values()];
+  plan.value = undefined;
+  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value, companions: companions.value });
+}
+
 function openReview(): void {
+  companions.value = [];
   screen.value = 'review';
   exact.value = true;
   plan.value = undefined;
   preview.value = undefined;
   applyError.value = undefined;
   progress.clear();
-  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value });
+  send({ type: 'requestPlan', selected: scoped.value, exact: exact.value, companions: companions.value });
   window.scrollTo(0, 0);
 }
 
 function setExact(value: boolean): void {
   exact.value = value;
   plan.value = undefined;
-  send({ type: 'requestPlan', selected: scoped.value, exact: value });
+  send({ type: 'requestPlan', selected: scoped.value, exact: value, companions: companions.value });
 }
 
 function apply(method: ApplyMethod, validate: boolean): void {
@@ -193,7 +204,7 @@ function apply(method: ApplyMethod, validate: boolean): void {
   applySucceeded.value = false;
   applyError.value = undefined;
   progress.clear();
-  send({ type: 'apply', method, selected: scoped.value, exact: exact.value, validate });
+  send({ type: 'apply', method, selected: scoped.value, exact: exact.value, validate, companions: companions.value });
 }
 
 function openDetail(name: string): void {
@@ -298,6 +309,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     @keep="canRevert = false; send({ type: 'keepChanges' })"
     @copy-report="send({ type: 'copyReport' })"
     @create-pr="send({ type: 'createPullRequest' })"
+    @include-companions="includeCompanions"
   />
   <DetailView
     v-else-if="screen === 'detail' && scan && detailPkg"

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-05
+
+### Added
+
+- Before installing, Keel checks the plan against the project's peerDependencies and warns when `npm install` would fail with ERESOLVE (for example vitest 3.2.7 requires @vitest/ui 3.2.7, and @vitest/coverage-v8 3.2.6 requires vitest 3.2.6). It suggests the sibling versions that fix it and adds them to the plan with one click; applying stays blocked until you add them or explicitly choose to try anyway. Keel still never uses `--force` or `--legacy-peer-deps`.
+- The CLI `plan` output includes `peerConflicts` and `suggestedWith`; pass them to `plan` and `apply` as `--with name@1.2.3`.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added

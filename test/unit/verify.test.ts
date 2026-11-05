@@ -129,3 +129,11 @@ describe('elección de versión desde el webview', () => {
     expect(parseWebviewMessage({ type: 'saveDecision', name: 'vitest', choice: 'version' })).toBeUndefined();
   });
 });
+
+describe('paquetes hermanos desde el webview', () => {
+  it('valida los companions de requestPlan', () => {
+    expect(parseWebviewMessage({ type: 'requestPlan', selected: ['vitest'], exact: true, companions: [{ name: '@vitest/ui', version: '3.2.7' }] })).toMatchObject({ companions: [{ name: '@vitest/ui', version: '3.2.7' }] });
+    expect(parseWebviewMessage({ type: 'requestPlan', selected: ['vitest'], exact: true, companions: [{ name: '@vitest/ui', version: 'latest' }] })).toBeUndefined();
+    expect(parseWebviewMessage({ type: 'requestPlan', selected: ['vitest'], exact: true })).toMatchObject({ companions: [] });
+  });
+});

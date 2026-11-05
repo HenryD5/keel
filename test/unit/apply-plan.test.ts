@@ -90,6 +90,16 @@ describe('plan de instalación', () => {
     expect(missing.skipped).toEqual([{ name: 'vite', reason: 'unknown-version' }]);
   });
 
+  it('añade paquetes hermanos por peerDependencies en su sección de package.json', async () => {
+    const result = await scan(deps());
+    const manifestText = JSON.stringify({ name: 'x', devDependencies: { vite: '5.4.2', '@vitest/ui': '3.2.6' } }, null, 2);
+    const plan = buildInstallPlan({ result, manifestText, selected: [], choices: {}, exact: true, companions: [{ name: '@vitest/ui', from: '3.2.6', to: '3.2.7' }, { name: 'not-direct', from: '1.0.0', to: '1.0.1' }] });
+    expect(plan.changes).toEqual([
+      expect.objectContaining({ name: '@vitest/ui', to: '3.2.7', kind: 'direct', section: 'devDependencies', newSpec: '3.2.7', companion: true }),
+      expect.objectContaining({ name: 'not-direct', kind: 'override', companion: true }),
+    ]);
+  });
+
   it('omite paquetes sin recomendación y no cambia una selección vacía', async () => {
     const result = await scan(deps());
     result.packages[0] = { ...result.packages[0]!, resolution: undefined, error: 'timeout' };
