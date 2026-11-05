@@ -206,6 +206,10 @@ const es = {
   saveDecision: 'Guardar decisión',
   saving: 'Guardando…',
   saveError: (m: string) => `No se pudo guardar: ${m}`,
+  advisoriesTitle: (v: string, n: number) => `Vulnerabilidades de ${v} (${n})`,
+  advisoriesHint: 'Con su código CVE, para cruzarlas con reportes como los de Fluid Attacks.',
+  noCve: 'sin CVE',
+  affects: (range: string) => `Afecta a ${range}`,
 };
 
 type Strings = typeof es;
@@ -400,9 +404,17 @@ const en: Strings = {
   saveDecision: 'Save decision',
   saving: 'Saving…',
   saveError: (m) => `Could not save: ${m}`,
+  advisoriesTitle: (v, n) => `Vulnerabilities in ${v} (${n})`,
+  advisoriesHint: 'With their CVE code, to match them with reports such as Fluid Attacks.',
+  noCve: 'no CVE',
+  affects: (range) => `Affects ${range}`,
 };
 
 export const STRINGS: Record<Lang, Strings> = { es, en };
+
+export function severityName(lang: Lang, severity: Severity): string {
+  return SEV[lang][severity][0];
+}
 
 export function severityText(lang: Lang, severity: Severity, n: number): string {
   return `${n} ${SEV[lang][severity][n === 1 ? 0 : 1]}`;

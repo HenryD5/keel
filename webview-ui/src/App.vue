@@ -5,6 +5,8 @@ import type { ApplyStatus, HostMessage, ImpactPayload, Lang, PlanPayload, ScanPa
 import DetailView from './components/DetailView.vue';
 import ReviewView from './components/ReviewView.vue';
 import ResultsView from './components/ResultsView.vue';
+import VerifyView from './components/VerifyView.vue';
+import type { VerifyResult } from '../../src/core/verify/verify';
 import { STRINGS } from './i18n';
 import { scopeToFilter } from './filter';
 import { defaultSelected, isSelectable } from './model';
@@ -34,6 +36,11 @@ const outputTail = ref<string>();
 const canRevert = ref(false);
 const reportAvailable = ref(false);
 const canCreatePr = ref(false);
+const verifyText = ref(saved.verifyText ?? '');
+const verifying = ref(false);
+const verifyResult = ref<VerifyResult>();
+const verifyResultText = ref<string>();
+const verifyError = ref<string>();
 
 
 const selection = computed(() => {
@@ -44,8 +51,8 @@ const selection = computed(() => {
 const scoped = computed(() => scopeToFilter(scan.value?.result.packages ?? [], selection.value, filter.value));
 const detailPkg = computed(() => scan.value?.result.packages.find((p) => p.name === detail.value));
 
-watch([screen, detail, filter, selected, scan], () =>
-  saveState({ screen: screen.value, detail: detail.value, filter: filter.value, selected: selected.value, scannedAt: scan.value?.result.scannedAt }),
+watch([screen, detail, filter, selected, scan, verifyText], () =>
+  saveState({ screen: screen.value, detail: detail.value, filter: filter.value, selected: selected.value, scannedAt: scan.value?.result.scannedAt, verifyText: verifyText.value }),
 );
 watch(lang, (l) => (document.documentElement.lang = l));
 
@@ -72,6 +79,7 @@ function onMessage(event: MessageEvent<HostMessage>): void {
       scanning.value = msg.scanning;
       error.value = msg.error;
       if (msg.scan) applyScan(msg.scan);
+      if (msg.screen === 'verify') screen.value = 'verify';
       if (screen.value === 'detail' && detailPkg.value) openDetail(detailPkg.value.name);
       if (screen.value === 'review' && scan.value) send({ type: 'requestPlan', selected: scoped.value, exact: exact.value });
       break;
@@ -140,6 +148,26 @@ function onMessage(event: MessageEvent<HostMessage>): void {
     case 'lang':
       lang.value = msg.lang;
       break;
+    case 'showVerify':
+      screen.value = 'verify';
+      window.scrollTo(0, 0);
+      break;
+    case 'verifying':
+      verifying.value = true;
+      verifyError.value = undefined;
+      break;
+    case 'verifyResult':
+      verifying.value = false;
+      verifyResult.value = msg.result;
+      verifyResultText.value ??= verifyText.value;
+      break;
+    case 'verifyError':
+      verifying.value = false;
+      verifyError.value = msg.message;
+      break;
+    case 'verifyText':
+      verifyText.value = msg.text;
+      break;
   }
 }
 
@@ -188,6 +216,21 @@ function removeDependency(name: string): void {
   send({ type: 'requestRemovalPlan', name });
 }
 
+function runVerify(text: string): void {
+  verifyResultText.value = text;
+  verifyError.value = undefined;
+  send({ type: 'verifyList', text });
+}
+
+/** Lleva a los resultados con solo los paquetes pendientes de la lista seleccionados. */
+function fixPending(names: string[]): void {
+  if (!scan.value) return;
+  selected.value = names.filter((n) => scan.value!.result.packages.some((p) => p.name === n && isSelectable(p, scan.value!)));
+  filter.value = 'all';
+  screen.value = 'results';
+  window.scrollTo(0, 0);
+}
+
 function setLang(l: Lang): void {
   lang.value = l;
   send({ type: 'setLang', lang: l });
@@ -215,8 +258,27 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
 </script>
 
 <template>
+  <VerifyView
+    v-if="screen === 'verify'"
+    :lang="lang"
+    :text="verifyText"
+    :scan="scan"
+    :verifying="verifying"
+    :result="verifyResult"
+    :result-text="verifyResultText"
+    :error="verifyError"
+    @back="screen = 'results'"
+    @update="(text) => (verifyText = text)"
+    @verify="runVerify"
+    @load-file="send({ type: 'loadVerifyFile' })"
+    @copy-report="send({ type: 'copyVerifyReport' })"
+    @open-detail="openDetail"
+    @open-external="(url) => send({ type: 'openExternal', url })"
+    @fix-pending="fixPending"
+    @rescan="screen = 'results'; send({ type: 'rescan' })"
+  />
   <ReviewView
-    v-if="screen === 'review' && scan"
+    v-else-if="screen === 'review' && scan"
     :lang="lang"
     :plan="plan"
     :preview="preview"
@@ -268,5 +330,6 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
     @show-log="send({ type: 'showLog' })"
     @select-project="send({ type: 'selectProject' })"
     @review="openReview"
+    @verify="screen = 'verify'; verifyError = undefined"
   />
 </template>

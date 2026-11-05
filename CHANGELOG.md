@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-05
+
+### Added
+
+- **Compare with a report** screen in the Keel panel: paste or load the findings from another scanner, preview how each one will be compared (exact by CVE/GHSA, by type, or not recognized), see them grouped as open, not checked and fixed, and jump to fixing the open packages.
+- The package detail lists each advisory with its CVE code (from OSV aliases), GHSA, CWEs and affected range; scan results in the CLI JSON include `cves` too.
+
+### Changed
+
+- The command is now **Keel: Compare with a Vulnerability Report** and opens the new panel screen instead of a Markdown document; the Markdown report is still available with **Copy report**.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added

@@ -12,7 +12,7 @@ import { isValidScriptName } from '../core/apply/validation';
 import { allowedHosts, findDisallowedRegistries } from '../core/audit/registries';
 import { keepDecisions, parseKeelFile } from '../core/decisions';
 import { findProjectUsages } from '../core/impact/walker';
-import { OsvReference, fetchOsvVuln } from '../core/reference/osv';
+import { OsvReference, fetchOsvVuln, queryOsv } from '../core/reference/osv';
 import { parseLockfile } from '../core/audit/lockfile';
 import { parseAudit } from '../core/audit/parseAudit';
 import { formatVerifyResult } from '../core/verify/format';
@@ -120,7 +120,12 @@ async function verifyCommand(options: CliOptions): Promise<number> {
     if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
     return response.json();
   };
-  const result = await verifyList(items, { audit, lock, getVuln: (id) => fetchOsvVuln(id, getJson) });
+  const postJson = async (url: string, body: unknown) => {
+    const response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000), headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'keel-npm' }, body: JSON.stringify(body) });
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    return response.json();
+  };
+  const result = await verifyList(items, { audit, lock, getVuln: (id) => fetchOsvVuln(id, getJson), packageVulns: (name) => queryOsv(name, postJson) });
   return output(options, formatVerifyResult(result, options.lang), result);
 }
 

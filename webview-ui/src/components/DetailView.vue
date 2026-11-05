@@ -2,7 +2,8 @@
 import { computed, ref, watch } from 'vue';
 import type { PackageReport } from '../../../src/core/scan';
 import type { ImpactPayload, Lang, ScanPayload } from '../../../src/webview/protocol';
-import { formatDate, STRINGS } from '../i18n';
+import { formatDate, severityName, STRINGS } from '../i18n';
+import { SEVERITY_ORDER, type Severity } from '../../../src/core/audit/types';
 import { snykUrl } from '../../../src/core/reference/snykUrl';
 import { candidateVersion, kindTag, riskLevel, vulnerabilityCount } from '../model';
 
@@ -24,6 +25,9 @@ const emit = defineEmits<{
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
+const advisoriesSorted = computed(() => [...props.pkg.advisories].sort((a, b) => SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity)));
+const severityLabel = (s: Severity) => severityName(props.lang, s);
+const ghsaOf = (url: string) => url.match(/GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}/i)?.[0];
 const r = computed(() => props.pkg.resolution);
 const candidate = computed(() => candidateVersion(props.pkg));
 const target = computed(() => (props.scan.choices[props.pkg.name] === 'latest' && r.value?.latest ? r.value.latest.version : candidate.value));
@@ -148,6 +152,28 @@ function save(): void {
     <section class="notice" :class="level === 'low' ? 'blue' : 'orange'" :aria-label="t.verdictLabel">
       <h2>{{ t.risk[level] }}</h2>
       <p>{{ verdict }}</p>
+    </section>
+
+    <section class="card" :aria-label="t.advisoriesTitle(pkg.installed, pkg.advisories.length)">
+      <div class="card-head">
+        <div class="stack">
+          <h2>{{ t.advisoriesTitle(pkg.installed, pkg.advisories.length) }}</h2>
+          <p class="sub">{{ t.advisoriesHint }}</p>
+        </div>
+      </div>
+      <ul class="advisories">
+        <li v-for="a in advisoriesSorted" :key="a.id">
+          <div class="inline">
+            <span class="sev" :class="`s-${a.severity}`">{{ severityLabel(a.severity) }}</span>
+            <button v-for="cve in a.cves ?? []" :key="cve" type="button" class="cve link-cve" @click="emit('openExternal', `https://osv.dev/vulnerability/${cve}`)">{{ cve }}</button>
+            <span v-if="!a.cves?.length" class="ref">{{ t.noCve }}</span>
+            <button v-if="ghsaOf(a.url)" type="button" class="cve link-cve faint" @click="emit('openExternal', a.url)">{{ ghsaOf(a.url) }}</button>
+            <span v-for="cwe in a.cwe" :key="cwe" class="tag">{{ cwe }}</span>
+          </div>
+          <span class="atitle">{{ a.title }}</span>
+          <span class="ref mono">{{ t.affects(a.range) }}</span>
+        </li>
+      </ul>
     </section>
 
     <div class="cols">

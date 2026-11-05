@@ -49,6 +49,24 @@ export async function fetchOsvVuln(id: string, getJson: (url: string) => Promise
 
 const MAX_PAGES = 5;
 
+/** GHSA → CVEs, según los alias de los avisos de OSV. */
+export function cveAliases(vulns: readonly OsvVuln[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const v of vulns) {
+    const ids = [v.id, ...(v.aliases ?? [])];
+    const cves = [...new Set(ids.filter((id) => /^CVE-\d{4}-\d+$/i.test(id)).map((id) => id.toUpperCase()))].sort();
+    if (cves.length === 0) continue;
+    for (const id of ids) if (/^GHSA-/i.test(id)) map.set(`GHSA${id.slice(4).toLowerCase()}`, cves);
+  }
+  return map;
+}
+
+/** El GHSA de la URL de un aviso de npm audit (`https://github.com/advisories/GHSA-…`). */
+export function ghsaOf(url: string): string | undefined {
+  const match = url.match(/GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}/i);
+  return match ? `GHSA${match[0].slice(4).toLowerCase()}` : undefined;
+}
+
 export function isMalicious(vuln: Pick<OsvVuln, 'id'>): boolean {
   return vuln.id.startsWith('MAL-');
 }
@@ -148,6 +166,10 @@ export class OsvReference implements SecondReference {
       this.cache.set(name, pending);
     }
     return pending;
+  }
+
+  osvVulns(name: string): Promise<OsvVuln[]> {
+    return this.vulns(name);
   }
 
   async excludedVersions(name: string): Promise<Set<string>> {

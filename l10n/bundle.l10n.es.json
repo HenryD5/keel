@@ -87,20 +87,7 @@
   "passed": "correcta",
   "skipped": "omitida",
   "failed": "fallida",
-  "Paste from clipboard": "Pegar desde el portapapeles",
-  "One CVE, GHSA or title per line": "Un CVE, GHSA o título por línea",
-  "Open a file…": "Abrir un archivo…",
-  "Use the active editor": "Usar el editor activo",
-  "Whole document": "Documento completo",
-  "Selection": "Selección",
-  "Keel: Verify Vulnerability List": "Keel: Verificar lista de vulnerabilidades",
-  "Where is the list?": "¿Dónde está la lista?",
   "Text": "Texto",
-  "Keel: the list has no CVE, GHSA codes or vulnerability titles.": "Keel: la lista no tiene códigos CVE, GHSA ni títulos de vulnerabilidades.",
-  "Keel: verifying {0} entries…": "Keel: verificando {0} entradas…",
-  "{0} resolved, {1} pending, {2} unverified.": "{0} resueltas, {1} pendientes, {2} sin verificar.",
-  "Keel: everything on the list is resolved. {0}": "Keel: todo lo de la lista está resuelto. {0}",
-  "Keel: not everything is fixed yet. {0}": "Keel: aún no está todo corregido. {0}",
-  "Keel: nothing is pending, but some entries could not be verified. {0}": "Keel: no queda nada pendiente, pero hay entradas sin verificar. {0}",
-  "Scan": "Escanear"
+  "The list has no CVE, GHSA codes or vulnerability titles.": "No hay códigos CVE, GHSA ni títulos de vulnerabilidades para comparar.",
+  "The file is too large to compare ({0} characters maximum).": "El archivo es demasiado grande para compararlo (máximo {0} caracteres)."
 }

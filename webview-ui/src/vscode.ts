@@ -5,12 +5,14 @@ export type { Filter };
 
 /** Estado del webview que VS Code conserva al ocultar y volver a mostrar el panel. */
 export interface ViewState {
-  screen: 'results' | 'detail' | 'review';
+  screen: 'results' | 'detail' | 'review' | 'verify';
   detail?: string;
   filter: Filter;
   /** Selección del dev; `undefined` hasta que toca un checkbox (se usa la selección por defecto). */
   selected?: string[];
   scannedAt?: string;
+  /** Lista pegada en la pantalla de verificación. */
+  verifyText?: string;
 }
 
 

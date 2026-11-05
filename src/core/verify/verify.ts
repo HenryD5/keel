@@ -1,46 +1,14 @@
 import semver from 'semver';
 import type { AuditResult } from '../audit/types';
 import type { Lockfile } from '../audit/lockfile';
-import { osvAffects, type OsvVuln } from '../reference/osv';
+import { cveAliases, ghsaOf, osvAffects, type OsvVuln } from '../reference/osv';
 import { categoryOf, fitsCategory, type Category } from './categories';
+import { normalizeId, type ListItem } from './parseList';
+
+export { parseVulnerabilityList, type ListItem } from './parseList';
 
 // Comprueba una lista externa de vulnerabilidades (códigos CVE/GHSA, títulos o ambos)
 // contra el estado actual del proyecto: npm audit, el lockfile y los avisos de OSV.
-
-const CVE = /\bCVE-\d{4}-\d{4,}\b/gi;
-const GHSA = /\bGHSA(?:-[23456789cfghjmpqrvwx]{4}){3}\b/gi;
-const MAX_ITEMS = 500;
-
-export interface ListItem {
-  /** Líneas (1-based) del texto original en las que aparece. */
-  lines: number[];
-  ids: string[];
-  title?: string;
-}
-
-/** Una línea por vulnerabilidad. Las líneas repetidas se agrupan; `,`/`;`/tabulador separan columnas. */
-export function parseVulnerabilityList(text: string): ListItem[] {
-  const byKey = new Map<string, ListItem>();
-  text.split(/\r?\n/).forEach((raw, index) => {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) return;
-    const ids = [...new Set([...(line.match(CVE) ?? []), ...(line.match(GHSA) ?? [])].map(normalizeId))];
-    const rest = line.replace(CVE, ' ').replace(GHSA, ' ').replace(/[\t,;|"]+/g, ' ').replace(/\s+/g, ' ').replace(/^[\s:–—-]+|[\s:–—-]+$/g, '').trim();
-    const title = /[a-z]{3}/i.test(rest) ? rest : undefined;
-    if (ids.length === 0 && !title) return;
-    const key = `${ids.join(' ')}|${title?.toLowerCase() ?? ''}`;
-    const item = byKey.get(key);
-    if (item) item.lines.push(index + 1);
-    else byKey.set(key, { lines: [index + 1], ids, title });
-  });
-  const items = [...byKey.values()];
-  if (items.length > MAX_ITEMS) throw new Error(`The list has more than ${MAX_ITEMS} distinct entries.`);
-  return items;
-}
-
-function normalizeId(id: string): string {
-  return id.toUpperCase().startsWith('GHSA') ? `GHSA${id.slice(4).toLowerCase()}` : id.toUpperCase();
-}
 
 export type VerifyStatus =
   /** El paquete está instalado en una versión fuera del rango vulnerable. */
@@ -76,6 +44,7 @@ export interface InstalledMatch {
 export interface Candidate {
   package: string;
   id: string;
+  cves: string[];
   title: string;
   severity: string;
   cwe: string[];
@@ -118,6 +87,8 @@ export interface VerifyDeps {
   lock: Lockfile;
   /** Aviso de OSV por ID; `undefined` si no existe. */
   getVuln(id: string): Promise<OsvVuln | undefined>;
+  /** Avisos de OSV de un paquete, para mostrar el CVE de los candidatos. Opcional. */
+  packageVulns?(name: string): Promise<OsvVuln[]>;
 }
 
 const CONCURRENCY = 6;
@@ -133,8 +104,20 @@ export async function verifyList(items: readonly ListItem[], deps: VerifyDeps): 
   const allIds = [...new Set(items.flatMap((i) => i.ids))];
   await mapLimit(allIds, CONCURRENCY, check);
 
-  const advisories = [...deps.audit.entries.values()].flatMap((entry) =>
-    entry.advisories.map((a) => ({ package: entry.name, id: ghsaFromUrl(a.url) ?? String(a.id), title: a.title, severity: a.severity, cwe: a.cwe })),
+  // Los CVE de los candidatos solo hacen falta si hay líneas con título y sin código.
+  const needsCves = deps.packageVulns && items.some((i) => i.ids.length === 0);
+  const entries = [...deps.audit.entries.values()].filter((e) => e.advisories.length > 0);
+  const aliasMaps = new Map<string, Map<string, string[]>>();
+  if (needsCves) {
+    await mapLimit(entries, CONCURRENCY, async (entry) => {
+      aliasMaps.set(entry.name, await deps.packageVulns!(entry.name).then(cveAliases, () => new Map<string, string[]>()));
+    });
+  }
+  const advisories: Candidate[] = entries.flatMap((entry) =>
+    entry.advisories.map((a) => {
+      const ghsa = ghsaOf(a.url);
+      return { package: entry.name, id: ghsa ?? String(a.id), cves: (ghsa && aliasMaps.get(entry.name)?.get(ghsa)) || a.cves || [], title: a.title, severity: a.severity, cwe: a.cwe };
+    }),
   );
 
   const out: VerifyItem[] = [];
@@ -248,16 +231,11 @@ function auditAdvisoryIds(audit: AuditResult): Set<string> {
   const ids = new Set<string>();
   for (const entry of audit.entries.values()) {
     for (const advisory of entry.advisories) {
-      const ghsa = ghsaFromUrl(advisory.url);
+      const ghsa = ghsaOf(advisory.url);
       if (ghsa) ids.add(ghsa);
     }
   }
   return ids;
-}
-
-function ghsaFromUrl(url: string): string | undefined {
-  const match = url.match(GHSA);
-  return match?.[0] ? normalizeId(match[0]) : undefined;
 }
 
 async function mapLimit<T>(values: readonly T[], limit: number, fn: (value: T) => Promise<unknown>): Promise<void> {

@@ -8,6 +8,7 @@ import type { ImportKind } from '../core/impact/imports';
 import type { ReferenceSource } from '../core/reference/types';
 import type { ScanResult } from '../core/scan';
 import type { RegistryFinding } from '../core/audit/registries';
+import type { VerifyResult } from '../core/verify/verify';
 
 export type Lang = 'es' | 'en';
 
@@ -78,7 +79,7 @@ export type ApplyStatus = 'running' | 'done' | 'warning' | 'failed' | 'skipped';
 
 /** Extensión → webview. */
 export type HostMessage =
-  | { type: 'init'; lang: Lang; scanning: boolean; scan?: ScanPayload; error?: string }
+  | { type: 'init'; lang: Lang; scanning: boolean; scan?: ScanPayload; error?: string; screen?: 'verify' }
   | { type: 'scanning' }
   | { type: 'scan'; scan: ScanPayload }
   | { type: 'scanError'; message: string }
@@ -90,7 +91,12 @@ export type HostMessage =
   | { type: 'applyProgress'; method: ApplyMethod; step: number; status: ApplyStatus; detail?: string }
   | { type: 'applyDone'; ok: boolean; message?: string; outputTail?: string; canRevert?: boolean; reportAvailable?: boolean; canCreatePr?: boolean }
   | { type: 'revertDone'; ok: boolean; message?: string }
-  | { type: 'lang'; lang: Lang };
+  | { type: 'lang'; lang: Lang }
+  | { type: 'showVerify' }
+  | { type: 'verifying' }
+  | { type: 'verifyResult'; result: VerifyResult }
+  | { type: 'verifyError'; message: string }
+  | { type: 'verifyText'; text: string };
 
 /** Webview → extensión. */
 export type WebviewMessage =
@@ -109,7 +115,13 @@ export type WebviewMessage =
   | { type: 'selectProject' }
   | { type: 'requestRemovalPlan'; name: string }
   | { type: 'copyReport' }
-  | { type: 'createPullRequest' };
+  | { type: 'createPullRequest' }
+  | { type: 'verifyList'; text: string }
+  | { type: 'loadVerifyFile' }
+  | { type: 'copyVerifyReport' };
+
+/** Tope del texto pegado en la pantalla de verificación. */
+export const MAX_LIST_LENGTH = 200_000;
 
 const LANGS: readonly string[] = ['es', 'en'];
 const CHOICES: readonly string[] = ['min', 'latest', 'keep'];
@@ -133,7 +145,11 @@ export function parseWebviewMessage(data: unknown): WebviewMessage | undefined {
     case 'selectProject':
     case 'copyReport':
     case 'createPullRequest':
+    case 'loadVerifyFile':
+    case 'copyVerifyReport':
       return { type: m.type };
+    case 'verifyList':
+      return str('text', MAX_LIST_LENGTH) ? { type: 'verifyList', text: m.text as string } : undefined;
     case 'requestRemovalPlan':
       return str('name', 214) ? { type: 'requestRemovalPlan', name: m.name as string } : undefined;
     case 'setLang':

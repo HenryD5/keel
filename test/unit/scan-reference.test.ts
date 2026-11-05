@@ -24,6 +24,11 @@ function realOsv(): OsvReference {
 }
 
 describe('scan con referencia', () => {
+  it('añade a cada aviso su CVE según los alias de OSV', async () => {
+    const braces = (await scan(base({ reference: realOsv() }))).packages.find((p) => p.name === 'braces')!;
+    expect(braces.advisories[0]).toMatchObject({ url: expect.stringContaining('GHSA-grv7-fg5c-xmjg'), cves: ['CVE-2024-4068'] });
+  });
+
   it('OSV concuerda con axios 1.20.0', async () => {
     const axios = (await scan(base({ reference: realOsv() }))).packages.find((p) => p.name === 'axios')!;
     expect(axios.reference).toMatchObject({ source: 'osv', version: '1.20.0', agrees: true, issues: [] });

@@ -50,6 +50,8 @@ export interface Advisory {
   /** Rango de versiones vulnerables, en sintaxis semver. */
   range: string;
   cwe: string[];
+  /** Códigos CVE del aviso (alias en OSV). Vacío si no tiene o no se pudo consultar. */
+  cves?: string[];
 }
 
 export interface AuditEntry {

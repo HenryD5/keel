@@ -10,9 +10,13 @@ This repository ships `keel-npm` for the same safe scan, plan, approval, apply, 
 
 The plan ID binds the approved selection, choices, changes, manifest, and lockfile. Apply refuses stale plans, writes that plan to `package.json`, runs `npm install`, and never delegates changes to `npm audit fix`. Planned versions are pinned by default; `--keep-range` preserves the dependency range and allows npm to install a newer version within it. After install Keel checks the real lockfile versions: a pinned mismatch fails and offers revert, while a kept-range mismatch is reported as a warning. Reports always use installed lockfile versions. After success Keel rescans before reporting and deletes the snapshot. After failure it retains a snapshot, but revert refuses if `package.json` or `package-lock.json` changed in the meantime. Keel never uses `--force`. The generic agent workflow is in `skills/keel-fix-vulnerabilities/SKILL.md`.
 
-### Verify an external vulnerability list
+### Compare with a vulnerability report
 
-**Keel: Verify Vulnerability List** in VS Code and `keel-npm verify` answer "did I fix everything on this list?" for a report from another scanner. Put one entry per line: a CVE or GHSA code, a vulnerability title, or both (`CVE-2024-4068 Asymmetric denial of service`). Repeated lines are grouped.
+In the Keel panel, **Compare with a report** opens a screen where you paste the findings from Fluid Attacks, Snyk, SonarQube or another tool (or load a `.txt`/`.csv` file). Before comparing, it shows how each finding will be checked: *exact* (it has a CVE or GHSA), *by type* (title only, mapped to CWEs), or *not recognized*. The result groups findings into open, not checked and fixed, shows the installed version and the fixed version, and **Fix the open ones** returns to the scan results with only those packages selected.
+
+The package detail also lists each advisory with its CVE code, GHSA, CWEs and affected range, so findings from tools that report CVEs, such as Fluid Attacks, can be matched one by one.
+
+**Keel: Compare with a Vulnerability Report** in VS Code and `keel-npm verify` answer "did I fix everything on this list?" for a report from another scanner. Put one entry per line: a CVE or GHSA code, a vulnerability title, or both (`CVE-2024-4068 Asymmetric denial of service`). Repeated lines are grouped.
 
 ```bash
 keel-npm verify --file vulnerabilities.txt --lang es
@@ -65,7 +69,7 @@ The command reads the project and contacts `api.osv.dev` only; it changes nothin
 - **Keel: Show Command Log** — show the commands Keel ran and their results.
 - **Keel: Set Snyk Token** — store or clear the optional Snyk API token. Snyk's API generally requires an Enterprise plan; without a token, Keel uses OSV.
 - **Keel: Select Project Folder** — choose among qualifying npm projects in the workspace.
-- **Keel: Verify Vulnerability List** — check whether a list of CVE/GHSA codes or vulnerability titles from another scanner is fixed. Take the list from the clipboard, a file, or the active editor; the result opens as Markdown.
+- **Keel: Compare with a Vulnerability Report** — open the **Compare with a report** screen of the Keel panel (also a button next to the scan results) to check which findings from another scanner, by CVE/GHSA code or title, are still open.
 
 ### Settings
 

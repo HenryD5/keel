@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseAudit } from '../../src/core/audit/parseAudit';
 import { parseLockfile } from '../../src/core/audit/lockfile';
 import type { OsvVuln } from '../../src/core/reference/osv';
-import { fetchOsvVuln } from '../../src/core/reference/osv';
+import { cveAliases, fetchOsvVuln, ghsaOf } from '../../src/core/reference/osv';
+import { parseWebviewMessage } from '../../src/webview/protocol';
 import { categoryOf } from '../../src/core/verify/categories';
 import { formatVerifyResult } from '../../src/core/verify/format';
 import { parseVulnerabilityList, verifyList } from '../../src/core/verify/verify';
@@ -87,7 +88,7 @@ describe('verifyList', () => {
     expect(unmapped!.status).toBe('unmapped');
     expect(result.totals).toMatchObject({ lines: 4, distinct: 3, pending: 2, resolved: 1, unverified: 1 });
     const text = formatVerifyResult(result, 'es');
-    expect(text).toContain('Aún no está todo corregido');
+    expect(text).toContain('Todavía quedan hallazgos abiertos');
     expect(text).toContain('×2');
   });
 });
@@ -96,5 +97,27 @@ describe('fetchOsvVuln', () => {
   it('rechaza IDs inválidos y trata 404 como inexistente', async () => {
     await expect(fetchOsvVuln('../x', async () => null)).rejects.toThrow();
     expect(await fetchOsvVuln('CVE-2024-4068', async () => null)).toBeUndefined();
+  });
+});
+
+describe('CVE de los avisos', () => {
+  it('relaciona GHSA y CVE en ambos sentidos', () => {
+    expect(cveAliases(braces).get('GHSA-grv7-fg5c-xmjg')).toEqual(['CVE-2024-4068']);
+    expect(ghsaOf('https://github.com/advisories/GHSA-GRV7-fg5c-xmjg')).toBe('GHSA-grv7-fg5c-xmjg');
+  });
+
+  it('los candidatos de un título muestran su CVE', async () => {
+    const vulns: OsvVuln[] = [{ id: 'GHSA-vh66-26gq-q6x8', aliases: ['CVE-2099-0001'] }];
+    const result = await verifyList(parseVulnerabilityList('Prototype Pollution'), { audit: sampleAudit, lock: lockWith({}), getVuln, packageVulns: async (name) => (name === 'axios' ? vulns : []) });
+    const candidate = result.items[0]!.candidates.find((c) => c.id === 'GHSA-vh66-26gq-q6x8');
+    expect(candidate?.cves).toEqual(['CVE-2099-0001']);
+  });
+});
+
+describe('mensajes de verificación del webview', () => {
+  it('acepta la lista y rechaza textos enormes', () => {
+    expect(parseWebviewMessage({ type: 'verifyList', text: 'CVE-2024-4068' })).toEqual({ type: 'verifyList', text: 'CVE-2024-4068' });
+    expect(parseWebviewMessage({ type: 'verifyList', text: 'x'.repeat(200_001) })).toBeUndefined();
+    expect(parseWebviewMessage({ type: 'loadVerifyFile' })).toEqual({ type: 'loadVerifyFile' });
   });
 });

@@ -1,3 +1,4 @@
+import type { OsvVuln } from './osv';
 import type { Severity } from '../audit/types';
 
 export type ReferenceSource = 'osv' | 'snyk';
@@ -36,4 +37,6 @@ export interface SecondReference {
   excludedVersions(name: string): Promise<Set<string>>;
   /** Avisos que la fuente reporta en `version`. */
   issuesFor(name: string, version: string): Promise<ReferenceIssue[]>;
+  /** Avisos de OSV del paquete, para leer sus alias (CVE ↔ GHSA). */
+  osvVulns?(name: string): Promise<OsvVuln[]>;
 }

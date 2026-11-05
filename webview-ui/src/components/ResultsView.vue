@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { PackageReport } from '../../../src/core/scan';
 import type { Lang, ScanPayload } from '../../../src/webview/protocol';
 import { severityText, STRINGS } from '../i18n';
+import { VERIFY_STRINGS } from '../verifyI18n';
 import {
   category,
   isKept,
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   showLog: [];
   selectProject: [];
   review: [];
+  verify: [];
 }>();
 
 const t = computed(() => STRINGS[props.lang]);
@@ -107,6 +109,7 @@ function sevs(pkg: PackageReport) {
           <button type="button" :class="{ on: lang === 'es' }" :aria-pressed="lang === 'es'" @click="emit('setLang', 'es')">ES</button>
           <button type="button" :class="{ on: lang === 'en' }" :aria-pressed="lang === 'en'" @click="emit('setLang', 'en')">EN</button>
         </div>
+        <button type="button" class="btn" @click="emit('verify')"><span class="codicon codicon-checklist" aria-hidden="true"></span>{{ VERIFY_STRINGS[lang].open }}</button>
         <button type="button" class="btn" @click="emit('showLog')"><span class="codicon codicon-output" aria-hidden="true"></span>{{ t.commandLog }}</button>
         <button type="button" class="btn" :disabled="scanning" @click="emit('rescan')">
           <span class="codicon" :class="scanning ? 'codicon-loading spin' : 'codicon-refresh'" aria-hidden="true"></span>{{ t.runAudit }}

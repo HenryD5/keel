@@ -9,6 +9,7 @@ import { compareManifests, type ManifestChecks } from './resolver/manifestDiff';
 import { resolveMinSafeVersion, type ResolveResult } from './resolver/minSafeVersion';
 import { buildVersionTable, type VersionRow } from './resolver/versionTable';
 import type { ReferenceCheck, SecondReference } from './reference/types';
+import { cveAliases, ghsaOf } from './reference/osv';
 import { isValidPackageName, isValidVersion } from './validate';
 
 export interface ScanDeps {
@@ -114,7 +115,7 @@ async function analyzePackage(entry: AuditEntry, lock: Lockfile, manifest: Manif
     parents,
     viaTopLevel,
     severity: maxSeverity(entry.advisories) ?? entry.severity,
-    advisories: entry.advisories,
+    advisories: await withCves(entry.name, entry.advisories, deps.reference),
     counts: countBySeverity(entry.advisories),
     auditFix: { kind: 'unknown' },
   };
@@ -171,6 +172,21 @@ async function analyzePackage(entry: AuditEntry, lock: Lockfile, manifest: Manif
   });
 
   return { ...report, resolution, checks, auditFix, reference, versionTable, repository: packument.repository };
+}
+
+/** Añade a cada aviso sus CVE (alias de OSV). Si OSV falla, los avisos quedan como estaban. */
+async function withCves(name: string, advisories: Advisory[], ref: SecondReference | undefined): Promise<Advisory[]> {
+  if (!ref?.osvVulns || !isValidPackageName(name)) return advisories;
+  try {
+    const aliases = cveAliases(await ref.osvVulns(name));
+    return advisories.map((a) => {
+      const ghsa = ghsaOf(a.url);
+      const cves = ghsa ? aliases.get(ghsa) : undefined;
+      return cves ? { ...a, cves } : a;
+    });
+  } catch {
+    return advisories;
+  }
 }
 
 /** Intentos máximos de descartar una candidata que la segunda referencia marca como maliciosa. */

@@ -86,8 +86,12 @@ export class SnykReference implements SecondReference {
     private readonly orgId: string,
     private readonly token: string,
     private readonly get: SnykGet,
-    private readonly malware: Pick<SecondReference, 'excludedVersions'>,
+    private readonly malware: Pick<SecondReference, 'excludedVersions' | 'osvVulns'>,
   ) {}
+
+  osvVulns(name: string) {
+    return this.malware.osvVulns ? this.malware.osvVulns(name) : Promise.resolve([]);
+  }
 
   excludedVersions(name: string): Promise<Set<string>> {
     return this.malware.excludedVersions(name);
